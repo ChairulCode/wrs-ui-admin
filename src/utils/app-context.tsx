@@ -143,9 +143,11 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 			}
 			setuserLoginInfo({ ...authRes.data, loggedIn: authRes.loggedIn });
 			setIsUserLoggedIn(authRes.loggedIn ? true : false);
+			return true;
 		} catch (error) {
 			console.error("Session check failed", error);
 			setIsUserLoggedIn(false);
+			return false;
 		} finally {
 			setIsLoading(false);
 		}
