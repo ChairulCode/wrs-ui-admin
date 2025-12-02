@@ -29,13 +29,10 @@ export const handleApiError = (error: any, toastId?: string | number) => {
 		toast.update(toastId, {
 			render: message,
 			type: "error",
-			position: "top-center",
+			position: "top-right",
 			autoClose: 1000,
-			hideProgressBar: true,
-			closeOnClick: false,
+			closeOnClick: true,
 			isLoading: false,
-			pauseOnHover: true,
-			draggable: true,
 			theme: "colored",
 		});
 	}
