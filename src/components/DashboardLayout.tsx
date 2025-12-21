@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileText, Trophy, Calendar, Megaphone, TrendingUp, BookOpen, Image, LogOut, GraduationCap } from "lucide-react";
+import { LayoutDashboard, FileText, Trophy, Calendar, Megaphone, TrendingUp, BookOpen, Image, LogOut, GraduationCap, UserCog, UserPen } from "lucide-react";
 import {
 	Sidebar,
 	SidebarContent,
@@ -23,14 +23,16 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
 	const pathname = useLocation().pathname;
 	const { isUserLoggedIn, logout } = useAppContext();
 	const menuItems = [
-		{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: ["Administrator", "Super Administrator"] },
-		{ title: "Profil Sekolah", url: "/dashboard/about", icon: FileText, roles: ["Administrator", "Super Administrator"] },
-		{ title: "Prestasi", url: "/dashboard/achievements", icon: Trophy, roles: ["Administrator", "Super Administrator"] },
-		{ title: "Kegiatan", url: "/dashboard/activities", icon: Calendar, roles: ["Administrator", "Super Administrator"] },
-		{ title: "Pengumuman", url: "/dashboard/announcements", icon: Megaphone, roles: ["Administrator", "Super Administrator"] },
-		{ title: "Kenaikan Kelas", url: "/dashboard/grade-promotions", icon: TrendingUp, roles: ["Administrator", "Super Administrator"] },
-		{ title: "Nilai Mapel", url: "/dashboard/subject-grades", icon: BookOpen, roles: ["Administrator", "Super Administrator"] },
-		{ title: "Carousel", url: "/dashboard/carousels", icon: Image, roles: ["Super Administrator"] },
+		{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Profil Sekolah", url: "/dashboard/about", icon: FileText, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Prestasi", url: "/dashboard/achievements", icon: Trophy, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Kegiatan", url: "/dashboard/activities", icon: Calendar, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Pengumuman", url: "/dashboard/announcements", icon: Megaphone, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Kenaikan Kelas", url: "/dashboard/grade-promotions", icon: TrendingUp, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Nilai Mapel", url: "/dashboard/subject-grades", icon: BookOpen, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Carousel", url: "/dashboard/carousels", icon: Image, roles: ["Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{ title: "Users", url: "/dashboard/users", icon: UserPen, roles: ["Super Administrator"] },
+		{ title: "Roles", url: "/dashboard/roles", icon: UserCog, roles: ["Super Administrator"] },
 	];
 
 	const filteredMenuItems = menuItems.filter((item) => profile && item.roles.includes(profile.userInfo.role));

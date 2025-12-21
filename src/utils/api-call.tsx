@@ -128,7 +128,7 @@ apiInstance.interceptors.response.use(
 	(response) => response,
 	(error) => {
 		if (error.code === "ERR_NETWORK") {
-			toast.error("Server is not connected!", {
+			toast.error("Server tidak terhubung!", {
 				position: "top-right",
 				autoClose: 5000,
 				hideProgressBar: true,
