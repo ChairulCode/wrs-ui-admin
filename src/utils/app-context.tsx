@@ -38,7 +38,6 @@ export interface UserInfo {
 }
 
 interface AppContextType {
-	fetchWebContenData: () => Promise<void>;
 	getWebContentValue: (key: string, defaultValue?: string) => string;
 	login: (formData: { email: string; password: string }) => Promise<UserInfo | null>;
 	logout: () => Promise<void>;
@@ -73,18 +72,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 	const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
 	const [isAdmin, setisAdmin] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
-	const [webContents, setwebContents] = useState<KontenWeb[] | []>([]);
-
-	const fetchWebContenData = async () => {
-		const resData = await getRequest("/konten-web");
-		console.log("konten:", resData);
-
-		setwebContents(resData);
-	};
-
-	const getWebContentValue = (key: string, defaultValue = "fetching from server...") => {
-		return webContents.find((item) => item.konten_key === key)?.konten_value || defaultValue;
-	};
 
 	const login = async (formData: LoginForm) => {
 		try {
@@ -101,7 +88,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 			const userInfo = userRes;
 			setuserLoginInfo({ ...userInfo.data.userInfo, loggedIn: userInfo.loggedIn });
 			setIsUserLoggedIn(true);
-			setisAdmin(["Super Administrator", "Administrator"].includes(userInfo.data.role));
+			setisAdmin(["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"].includes(userInfo.data.role));
 			await checkingSession();
 			console.log(userLoginInfo);
 
@@ -159,8 +146,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 	}, []);
 
 	const contextValue: AppContextType = {
-		fetchWebContenData,
-		getWebContentValue,
 		login,
 		logout,
 		checkingSession,
@@ -174,7 +159,6 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 		setuserLoginInfo,
 		setisAdmin,
 		setIsLoading,
-		setwebContents,
 	};
 
 	return (
