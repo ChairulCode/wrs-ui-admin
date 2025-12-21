@@ -26,7 +26,7 @@ const Auth = () => {
 
 			if (user) {
 				navigate("/dashboard");
-				return
+				return;
 			}
 		} catch (error) {
 			toast.error(error.message || "Terjadi kesalahan");
