@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, Calendar, Megaphone, BookOpen } from "lucide-react";
@@ -7,7 +6,6 @@ import { getRequest, postRequest } from "@/utils/api-call";
 import { useAppContext } from "@/utils/app-context";
 
 const Dashboard = () => {
-	const { userLoginInfo } = useAppContext();
 	const [stats, setStats] = useState({
 		achievements: 0,
 		activities: 0,
@@ -17,11 +15,10 @@ const Dashboard = () => {
 
 	useEffect(() => {
 		const fetchStats = async () => {
-			// const filter = userLoginInfo.role === "Super Administrator" ? {} : { school_level: userLoginInfo.name };
 			const [achievements, activities, announcements, grades] = await Promise.all([
-				await getRequest("/berita"),
-				await getRequest("/kegiatan"),
-				await getRequest("/pengumuman"),
+				await getRequest("/prestasi?limit=1000"),
+				await getRequest("/kegiatan?limit=1000"),
+				await getRequest("/pengumuman?limit=1000"),
 				await getRequest("/pengumuman"),
 			]);
 
