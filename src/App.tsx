@@ -17,6 +17,7 @@ import PrestasiDetail from "./pages/Achievements/AchievementDetail";
 import RoleManagementPage from "./pages/Roles";
 import UserManagementPage from "./pages/User";
 import KegiatanDetailPage from "./pages/Activities/AcitivitiesDetail";
+import { ToastProvider } from "./components/ui/toast";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
 		<TooltipProvider>
 			<Toaster />
 			<Sonner />
+			<ToastProvider />
 			<BrowserRouter>
 				<Routes>
 					<Route path='/' element={<Navigate to='/auth' replace />} />

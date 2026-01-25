@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatTime } from "@/utils/time-format";
 
 interface InitialForm {
+	pengumuman_id: string;
 	judul: string;
 	deskripsi: string;
 	konten: string;
@@ -29,10 +30,17 @@ interface InitialForm {
 	is_published: boolean;
 	is_featured: boolean;
 	updated_at: string;
-	jenjang: Jenjang[];
+	jenjang_relasi: JenjangRelasi[];
 }
 
+type JenjangRelasi = {
+	pengumuman_id?: string;
+	jenjang_id?: string;
+	jenjang?: Jenjang;
+};
+
 const initialFormData: InitialForm = {
+	pengumuman_id: "",
 	judul: "",
 	deskripsi: "",
 	konten: "",
@@ -42,13 +50,18 @@ const initialFormData: InitialForm = {
 	is_published: true,
 	is_featured: true,
 	updated_at: "",
-	jenjang: [],
+	jenjang_relasi: [
+		{
+			jenjang_id: "",
+			pengumuman_id: "",
+			jenjang: {
+				jenjang_id: "",
+				nama_jenjang: "",
+				kode_jenjang: "",
+			},
+		},
+	],
 };
-
-/**
- * PR
- * 1. BAGIAN POPUP(FIELD JENJANG DAN TAMPILKAN MASIH BELUM TERBACA DATA API NYA, KARENA TIDAK ADA ASYNC JADI DIPAKAI DATA AWAL)
- */
 
 const AnnouncementsPage = () => {
 	const { userLoginInfo } = useAppContext();
@@ -182,6 +195,7 @@ const AnnouncementsPage = () => {
 		const formattedDate = announcements.tanggal_publikasi ? new Date(announcements.tanggal_publikasi!).toISOString().split("T")[0] : "";
 
 		setFormData({
+			pengumuman_id: announcements.pengumuman_id,
 			judul: announcements.judul,
 			deskripsi: announcements.deskripsi,
 			konten: announcements.konten,
@@ -191,7 +205,7 @@ const AnnouncementsPage = () => {
 			updated_at: announcements.updated_at,
 			penulis_user_id: announcements.penulis_user_id,
 			editor_user_id: announcements.editor_user_id,
-			jenjang,
+			jenjang_relasi: announcements.jenjang_relasi,
 		});
 		setEditingId(announcements.pengumuman_id || null);
 		setOpen(true);
@@ -322,49 +336,61 @@ const AnnouncementsPage = () => {
 										<Label htmlFor='content'>Konten Lengkap</Label>
 										<Textarea id='content' value={formData.konten} onChange={(e) => setFormData({ ...formData, konten: e.target.value })} rows={8} />
 									</div>
-									{/* JENJANG */}
+									{/* JENJANG - HANYA SUPER ADMINISTRATOR*/}
 									<div className='grid gap-4'>
 										<Label htmlFor=''>Jenjang</Label>
 										<div className='grid grid-cols-2 gap-4'>
 											{jenjang &&
-												jenjang.map((jenjang) => (
-													<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
-														<Input
-															id={`jenjang-${jenjang.kode_jenjang}`}
-															type='checkbox'
-															value={jenjang.jenjang_id}
-															checked={formData.jenjang.some((id) => id.jenjang_id === jenjang.jenjang_id)}
-															name='jenjang'
-															className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
-															onChange={(e) =>
-																setFormData((prev) => ({
-																	...prev,
-																	jenjang: e.target.checked ? [...prev.jenjang, jenjang] : prev.jenjang.filter((id) => id.jenjang_id !== jenjang.jenjang_id), // Jika tidak dicentang, hapus objek 'jenjang'
-																}))
-															}
-														/>
-														<Label htmlFor={`jenjang-${jenjang.kode_jenjang}`} className='w-full py-4 select-none ms-2 text-sm font-medium text-heading'>
-															{jenjang.nama_jenjang}
-														</Label>
-													</div>
-												))}
+												jenjang.map((item, idx) => {
+													return (
+														<div
+															className={`flex items-center ps-4  rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+																formData.jenjang_relasi.some((id) => id.jenjang_id === item.jenjang_id) && "border-blue-500"
+															}`}
+														>
+															<Input
+																id={`jenjang-${item.kode_jenjang}`}
+																type='checkbox'
+																value={item.jenjang_id}
+																checked={formData.jenjang_relasi.some((id) => id.jenjang_id === item.jenjang_id)}
+																name='jenjang'
+																className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
+																onChange={(e) => {
+																	setFormData((prev) => ({
+																		...prev,
+																		jenjang_relasi: e.target.checked
+																			? [...prev.jenjang_relasi, { pengumuman_id: formData.pengumuman_id, jenjang_id: item.jenjang_id, jenjang: item }]
+																			: prev.jenjang_relasi.filter((id) => id.jenjang_id !== item.jenjang_id),
+																	}));
+																}}
+															/>
+															<Label htmlFor={`jenjang-${item.kode_jenjang}`} className='w-full py-4 select-none ms-2 text-sm font-medium text-heading'>
+																{item.nama_jenjang}
+															</Label>
+														</div>
+													);
+												})}
 										</div>
 									</div>
 									{/* TAMPILKAN */}
 									<div className='grid gap-4'>
 										<Label htmlFor=''>Tampilkan</Label>
 										<div className='grid grid-cols-2 gap-4'>
-											<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
+											<div
+												className={`flex items-center ps-4 rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+													formData.is_published && "border-blue-500"
+												}`}
+											>
 												<Input
 													id={`is_published_true`}
 													type='checkbox'
 													checked={formData.is_published}
 													name='is_published'
-													className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
+													className='group-checked:border-red-600 w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? true : false,
+															is_published: prev.is_published ? true : e.target.checked,
 														}))
 													}
 												/>
@@ -372,7 +398,11 @@ const AnnouncementsPage = () => {
 													Ya
 												</Label>
 											</div>
-											<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
+											<div
+												className={`flex items-center ps-4 rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+													!formData.is_published && "border-blue-500"
+												}`}
+											>
 												<Input
 													id={`is_published_false`}
 													type='checkbox'
@@ -382,7 +412,7 @@ const AnnouncementsPage = () => {
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? false : true,
+															is_published: prev.is_published ? false : e.target.checked,
 														}))
 													}
 												/>

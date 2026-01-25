@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import DashboardLayout from "@/components/DashboardLayout";
+import { getRequest, putRequest } from "@/utils/api-call";
 
 export default function RoleManagementPage() {
 	const [roles, setRoles] = useState([]);
@@ -12,36 +12,20 @@ export default function RoleManagementPage() {
 	const [selectedRole, setSelectedRole] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
+	const [mode, setMode] = useState<"ROLE" | "PERMISSION">("PERMISSION");
 
-	// [1] Fetch semua Role dan semua Permission Master saat komponen dimuat
 	useEffect(() => {
 		const fetchData = async () => {
 			setLoading(true);
 			try {
-				// Asumsi: fetchRole() mengambil daftar role (id, nama_role)
-				// Asumsi: fetchPermissions() mengambil daftar semua permission master (id, nama_permission, grup)
-				// const roleList = await lihatSemuaRole();
-				// const masterPermissions = await lihatSemuaPermission();
+				const roles = await getRequest("/users/roles");
+				const permissions = await getRequest("/users/permissions/list");
 
-				// --- Placeholder Data ---
-				const roleList = [
-					{ role_id: 1, nama_role: "SuperAdmin" },
-					{ role_id: 2, nama_role: "Admin Konten" },
-					{ role_id: 3, nama_role: "User Biasa" },
-				];
-				const masterPermissions = [
-					{ permission_id: 1, nama_permission: "user.create", grup: "user" },
-					{ permission_id: 2, nama_permission: "user.read", grup: "user" },
-					{ permission_id: 3, nama_permission: "content.create", grup: "content" },
-					{ permission_id: 4, nama_permission: "content.delete", grup: "content" },
-				];
-				// ------------------------
+				setRoles(roles.data);
+				setPermissions(permissions?.data);
 
-				setRoles(roleList);
-				setPermissions(masterPermissions);
-				if (roleList.length > 0) {
-					// Secara default, pilih role pertama
-					handleSelectRole(roleList[0]);
+				if (roles.length > 0) {
+					handleSelectRole(roles[0]);
 				}
 			} catch (error) {
 				console.error("Gagal mengambil data:", error);
@@ -52,18 +36,12 @@ export default function RoleManagementPage() {
 		fetchData();
 	}, []);
 
-	// [2] Handler saat Role dipilih
 	const handleSelectRole = async (role) => {
-		// Asumsi: Ambil detail role yang berisi permission yang sudah dimiliki
-		// const detail = await lihatDetailRole(role.role_id);
-
-		// --- Placeholder Detail ---
-		const ownedPermissions = role.role_id === 1 ? [1, 2, 3, 4] : role.role_id === 2 ? [3] : [];
+		const ownedPermissions = role.role_permission.map((x) => x.permission.permission_id);
 		const detail = {
 			...role,
 			ownedPermissionIds: ownedPermissions,
 		};
-		// ------------------------
 
 		setSelectedRole(detail);
 	};
@@ -94,8 +72,9 @@ export default function RoleManagementPage() {
 		setIsSaving(true);
 		try {
 			// Panggil API updatePermission(roleId, [permissionIds])
-			// await updatePermission(selectedRole.role_id, selectedRole.ownedPermissionIds);
-			alert(`Permission untuk ${selectedRole.nama_role} berhasil disimpan!`);
+			const res = await putRequest(`users/roles/${selectedRole.role_id}/permissions`, { permission_ids: selectedRole.ownedPermissionIds });
+			console.log("hasil", res);
+			// alert(`Permission untuk ${selectedRole.nama_role} berhasil disimpan!`);
 		} catch (error) {
 			console.error("Gagal menyimpan permission:", error);
 			alert("Gagal menyimpan perubahan.");
@@ -123,9 +102,9 @@ export default function RoleManagementPage() {
 					<Card className='lg:col-span-1'>
 						<CardHeader>
 							<CardTitle>Daftar Role</CardTitle>
-							<Button size='sm' className='mt-2 w-full'>
-								Tambah Role Baru
-							</Button>
+							{/* <Button type='button' onClick={() => setMode((prev) => (prev === "PERMISSION" ? "ROLE" : "PERMISSION"))} size='sm' className='mt-2 w-full'>
+								{mode === "ROLE" ? "Ubah Perizinan" : "Lihat Role"}
+							</Button> */}
 						</CardHeader>
 						<CardContent className='max-h-[600px] overflow-y-auto'>
 							{roles.map((role) => (
@@ -145,24 +124,36 @@ export default function RoleManagementPage() {
 					{/* -------------------------------------------------- */}
 					{/* KOLOM KANAN: DETAIL PERMISSION ROLE (Permission Editor) */}
 					{/* -------------------------------------------------- */}
-					<Card className='lg:col-span-2'>
-						<CardHeader>
-							<CardTitle>Permission untuk: {selectedRole?.nama_role || "Pilih Role"}</CardTitle>
-						</CardHeader>
-						<CardContent className='max-h-[600px] overflow-y-auto'>
-							{!selectedRole ? (
-								<p className='text-gray-500'>Silakan pilih Role dari daftar di samping untuk melihat dan mengedit permission.</p>
-							) : (
-								<PermissionEditor
-									allPermissions={permissions}
-									selectedRole={selectedRole}
-									onToggle={handlePermissionToggle}
-									onSave={handleSavePermissions}
-									isSaving={isSaving}
-								/>
-							)}
-						</CardContent>
-					</Card>
+
+					{mode === "PERMISSION" && (
+						<Card className='lg:col-span-2'>
+							<CardHeader>
+								<CardTitle>Permission untuk: {selectedRole?.nama_role || "Pilih Role"}</CardTitle>
+							</CardHeader>
+							<CardContent className='max-h-[600px] overflow-y-auto'>
+								{!selectedRole ? (
+									<p className='text-gray-500'>Silakan pilih Role dari daftar untuk melihat dan mengedit permission.</p>
+								) : (
+									<PermissionEditor
+										allPermissions={permissions}
+										selectedRole={selectedRole}
+										onToggle={handlePermissionToggle}
+										onSave={handleSavePermissions}
+										isSaving={isSaving}
+									/>
+								)}
+							</CardContent>
+						</Card>
+					)}
+
+					{mode === "ROLE" && (
+						<Card className='lg:col-span-2'>
+							<CardHeader>
+								<CardTitle>Detail Role: {selectedRole?.nama_role || "Pilih Role"}</CardTitle>
+							</CardHeader>
+							<CardContent className='max-h-[600px] overflow-y-auto'></CardContent>
+						</Card>
+					)}
 				</div>
 			</div>
 		</DashboardLayout>
@@ -191,29 +182,27 @@ const PermissionEditor = ({ allPermissions, selectedRole, onToggle, onSave, isSa
 				{Object.entries(groupedPermissions).map(([group, perms]) => (
 					<div key={group} className='border p-4 rounded-lg'>
 						<h4 className='font-semibold text-lg mb-3 capitalize'>{group}</h4>
+						{/* <Checkbox id={`group-perm-${group.permission_id}`} checked={isChecked(perm.permission_id)} onCheckedChange={() => onToggle(perm.permission_id)} /> */}
 						<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
-							{perms.map((perm) => (
-								<div key={perm.permission_id} className='flex items-center space-x-2'>
-									<Checkbox id={`perm-${perm.permission_id}`} checked={isChecked(perm.permission_id)} onCheckedChange={() => onToggle(perm.permission_id)} />
-									<label
-										htmlFor={`perm-${perm.permission_id}`}
-										className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
-									>
-										{perm.nama_permission}
-									</label>
-								</div>
-							))}
+							{perms &&
+								perms.map((perm) => (
+									<div key={perm.permission_id} className='flex items-center space-x-2'>
+										<Checkbox id={`perm-${perm.permission_id}`} checked={isChecked(perm.permission_id)} onCheckedChange={() => onToggle(perm.permission_id)} />
+										<label
+											htmlFor={`perm-${perm.permission_id}`}
+											className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+										>
+											{perm.nama_permission}
+										</label>
+									</div>
+								))}
 						</div>
 					</div>
 				))}
 			</div>
 
 			<div className='flex justify-end pt-4 border-t mt-6'>
-				<Button
-					onClick={onSave}
-					disabled={isSaving || !selectedRole}
-					// Tambahkan loading spinner jika isSaving true
-				>
+				<Button onClick={onSave} disabled={isSaving || !selectedRole}>
 					{isSaving ? "Menyimpan..." : "Simpan Perubahan"}
 				</Button>
 			</div>

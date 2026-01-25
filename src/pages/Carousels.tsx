@@ -83,7 +83,7 @@ const CarouselsPage = () => {
 			const responseData: ApiResponse<Carousel> = await getRequest(`/carousels?page=1&limit=1000`);
 			if (!responseData.data) throw new Error(responseData.message);
 			const fetchJenjang = await getRequest(`/jenjang`);
-			let filterBasedRole = "";
+			// let filterBasedRole = "";
 			// switch (userLoginInfo.userInfo.role) {
 			// 	case "Kepala Sekolah PG-TK":
 			// 		filterBasedRole = "PG-TK";
@@ -357,7 +357,7 @@ const CarouselsPage = () => {
 									{/* DESKRIPSI */}
 									<div className='space-y-2'>
 										<Label htmlFor='order'>Urutan</Label>
-										<Input type='number' id='order'  value={formData.urutan} onChange={(e) => setFormData({ ...formData, urutan: Number(e.target.value) })} />
+										<Input type='number' id='order' value={formData.urutan} onChange={(e) => setFormData({ ...formData, urutan: Number(e.target.value) })} />
 										{/* <Textarea
 										 */}
 									</div>
@@ -407,36 +407,6 @@ const CarouselsPage = () => {
 										<Label htmlFor='content'>Konten Lengkap</Label>
 										<Textarea id='content' value={formData.konten} onChange={(e) => setFormData({ ...formData, konten: e.target.value })} rows={8} />
 									</div>
-									{/* JENJANG - HANYA SUPER ADMINISTRATOR*/}
-									{userLoginInfo.userInfo.role === "Super Administrator" && (
-										<div className='grid gap-4'>
-											<Label htmlFor=''>Jenjang</Label>
-											<div className='grid grid-cols-2 gap-4'>
-												{jenjang &&
-													jenjang.map((jenjang) => (
-														<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
-															<Input
-																id={`jenjang-${jenjang.kode_jenjang}`}
-																type='checkbox'
-																value={jenjang.jenjang_id}
-																checked={formData.jenjang.some((id) => id.jenjang_id === jenjang.jenjang_id)}
-																name='jenjang'
-																className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
-																onChange={(e) =>
-																	setFormData((prev) => ({
-																		...prev,
-																		jenjang: e.target.checked ? [...prev.jenjang, jenjang] : prev.jenjang.filter((id) => id.jenjang_id !== jenjang.jenjang_id), // Jika tidak dicentang, hapus objek 'jenjang'
-																	}))
-																}
-															/>
-															<Label htmlFor={`jenjang-${jenjang.kode_jenjang}`} className='w-full py-4 select-none ms-2 text-sm font-medium text-heading'>
-																{jenjang.nama_jenjang}
-															</Label>
-														</div>
-													))}
-											</div>
-										</div>
-									)}
 									{/* TAMPILKAN */}
 									<div className='grid gap-4'>
 										<Label htmlFor=''>Tampilkan</Label>
@@ -447,11 +417,11 @@ const CarouselsPage = () => {
 													type='checkbox'
 													checked={formData.is_published}
 													name='is_published'
-													className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
+													className='group-checked:border-red-600 w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? true : false,
+															is_published: prev.is_published ? true : e.target.checked,
 														}))
 													}
 												/>
@@ -469,7 +439,7 @@ const CarouselsPage = () => {
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? false : true,
+															is_published: prev.is_published ? false : e.target.checked,
 														}))
 													}
 												/>
@@ -546,8 +516,7 @@ const CarouselsPage = () => {
 									<TableHead>Urutan</TableHead>
 									<TableHead>Konten</TableHead>
 									<TableHead>Tampilkan</TableHead>
-									{/* <TableHead className='w-[150px]'>Tanggal</TableHead> */}
-									<TableHead className='w-[150px]'>Jenjang</TableHead>
+									<TableHead className='w-[150px]'>Tanggal</TableHead>
 									<TableHead className='text-right w-[100px]'>Aksi</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -571,21 +540,10 @@ const CarouselsPage = () => {
 											<TableCell className='font-medium'>{carousels.judul.length > 30 ? `${carousels.judul.substring(0, 30)}...` : carousels.judul}</TableCell>
 											<TableCell className='font-medium'>{carousels.urutan}</TableCell>
 											<TableCell className='font-medium'>
-												{carousels.deskripsi && carousels.deskripsi.length > 30 ? `${carousels.deskripsi.substring(0, 30)}...` : carousels.deskripsi}
-											</TableCell>
-											<TableCell className='font-medium'>
 												{carousels.konten && carousels.konten.length > 30 ? `${carousels.konten.substring(0, 30)}...` : carousels.konten}
 											</TableCell>
 											<TableCell className='font-medium'>{carousels.is_published ? "Ya" : "Tidak"}</TableCell>
 											<TableCell>{carousels.tanggal_publikasi ? new Date(carousels.tanggal_publikasi!).toLocaleDateString("id-ID") : "-"}</TableCell>
-											{/* <TableCell className='font-medium'>
-												{carousels.jenjang_relasi &&
-													carousels.jenjang_relasi.map((item: Jenjang_relasi) => (
-														<p key={item.jenjang_id} className={`px-2 py-2 m-1 rounded-full w-fit ${getGradeColors(item.jenjang.kode_jenjang)}`}>
-															{item.jenjang.kode_jenjang}
-														</p>
-													))}
-											</TableCell> */}
 											<TableCell className='text-right flex gap-2'>
 												<Button size='sm' variant='outline' onClick={() => navigate(`/dashboard/carousels/${carousels.prestasi_id}`)}>
 													<Eye className='h-4 w-4' />

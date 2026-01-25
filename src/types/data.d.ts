@@ -138,6 +138,8 @@ export interface Carousel {
 	jenjang_id?: string;
 	penulis_user_id: string;
 	editor_user_id?: string;
+	jenjangJenjang_id: string | null;
+	jenjang_relasi: Jenjang_relasi[];
 	jenjang?: string;
 	penulis: Penulis;
 	editor: Penulis;

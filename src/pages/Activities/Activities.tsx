@@ -8,16 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Search, RefreshCcw, Eye, Cloud, CloudUploadIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, RefreshCcw, Eye, Cloud, CloudUploadIcon, CheckIcon, MinusIcon } from "lucide-react";
 import { deleteRequest, getRequest, postRequest, putRequest } from "@/utils/api-call";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Swal from "sweetalert2";
 import { useAppContext } from "@/utils/app-context";
 import { useNavigate } from "react-router-dom";
 import DashboardPagination from "@/components/sections/dashboardPagination";
-import { ApiResponse, Jenjang, Kegiatan } from "@/types/data";
+import { ApiResponse, Jenjang, Jenjang_relasi, Kegiatan } from "@/types/data";
 
 interface InitialForm {
+	kegiatan_id: string;
 	judul: string;
 	deskripsi: string;
 	konten: string;
@@ -28,10 +29,17 @@ interface InitialForm {
 	is_published: boolean;
 	is_featured: boolean;
 	updated_at: string;
-	jenjang: Jenjang[];
+	jenjang_relasi: JenjangRelasi[];
 }
 
+type JenjangRelasi = {
+	kegiatan_id: string;
+	jenjang_id: string;
+	jenjang: Jenjang;
+};
+
 const initialFormData: InitialForm = {
+	kegiatan_id: "",
 	judul: "",
 	deskripsi: "",
 	konten: "",
@@ -42,7 +50,17 @@ const initialFormData: InitialForm = {
 	is_published: true,
 	is_featured: true,
 	updated_at: "",
-	jenjang: [],
+	jenjang_relasi: [
+		{
+			jenjang_id: "",
+			kegiatan_id: "",
+			jenjang: {
+				jenjang_id: "",
+				nama_jenjang: "",
+				kode_jenjang: "",
+			},
+		},
+	],
 };
 
 /**
@@ -51,10 +69,10 @@ const initialFormData: InitialForm = {
  */
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
-const Acitivies = () => {
+const Activities = () => {
 	const { userLoginInfo } = useAppContext();
-	const [activitiesBackup, setActivitiesBackup] = useState<ApiResponse<Kegiatan>["data"] | []>([]);
-	const [activitiesFiltered, setActivitiesFiltered] = useState<ApiResponse<Kegiatan>["data"] | []>([]);
+	const [activitiesBackup, setAchievementsBackup] = useState<ApiResponse<Kegiatan>["data"] | []>([]);
+	const [activitiesFiltered, setAchievementsFiltered] = useState<ApiResponse<Kegiatan>["data"] | []>([]);
 	const [jenjang, setJenjang] = useState<Jenjang[]>([]);
 	const [gambar, setGambar] = useState<File | null>(null);
 	const [formData, setFormData] = useState<InitialForm>(initialFormData);
@@ -74,20 +92,20 @@ const Acitivies = () => {
 	const limit = 10;
 	const totalPages = Math.ceil(totalData / limit);
 
-	const fetchActivities = async () => {
+	const fetchAchievements = async () => {
 		setisLoading(true);
 		try {
-			const responseData = await getRequest(`/kegiatan?page=1&limit=1000`);
+			const responseData: ApiResponse<Kegiatan> = await getRequest(`/kegiatan?page=1&limit=1000`);
 			const fetchJenjang = await getRequest(`/jenjang`);
-
 			const sortData = responseData.data.sort((a: Kegiatan, b: Kegiatan) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-			setActivitiesBackup(sortData);
-			setActivitiesFiltered(sortData.slice(limit * (page - 1), limit * page));
+
+			setAchievementsBackup(sortData);
+			setAchievementsFiltered(sortData?.slice(limit * (page - 1), limit * page));
 			setJenjang(fetchJenjang.data);
 		} catch (e) {
 			console.error(e);
 			toast.error("Gagal memuat data kegiatan.");
-			setActivitiesBackup(null);
+			setAchievementsBackup(null);
 			setIsError(true);
 		} finally {
 			setisLoading(false);
@@ -153,7 +171,7 @@ const Acitivies = () => {
 
 			setIsError(true);
 		} finally {
-			fetchActivities();
+			fetchAchievements();
 			setisLoading(false);
 		}
 	};
@@ -174,7 +192,7 @@ const Acitivies = () => {
 			toast.error(error.message || "Terjadi kesalahan");
 			setIsError(true);
 		} finally {
-			fetchActivities();
+			fetchAchievements();
 			setisLoading(false);
 		}
 	};
@@ -196,23 +214,25 @@ const Acitivies = () => {
 		});
 	};
 
-	const openEditDialog = (activities: Kegiatan) => {
-		const formattedDate = activities.tanggal_publikasi ? new Date(activities.tanggal_publikasi!).toISOString().split("T")[0] : "";
+	const openEditDialog = (achievement: Kegiatan) => {
+		const formattedDate = achievement.tanggal_publikasi ? new Date(achievement.tanggal_publikasi!).toISOString().split("T")[0] : "";
 
 		setFormData({
-			judul: activities.judul,
-			deskripsi: activities.deskripsi,
-			konten: activities.konten,
-			path_gambar: activities.path_gambar || "",
+			kegiatan_id: achievement.kegiatan_id,
+			judul: achievement.judul,
+			deskripsi: achievement.deskripsi,
+			konten: achievement.konten,
+			path_gambar: achievement.path_gambar || "",
 			tanggal_publikasi: formattedDate,
-			is_published: activities.is_published,
-			is_featured: activities.is_featured,
-			updated_at: activities.updated_at,
-			penulis_user_id: activities.penulis_user_id,
-			editor_user_id: activities.editor_user_id,
-			jenjang,
+			is_published: achievement.is_published,
+			is_featured: achievement.is_featured,
+			updated_at: achievement.updated_at,
+			penulis_user_id: achievement.penulis_user_id,
+			editor_user_id: achievement.editor_user_id,
+			jenjang_relasi: achievement.jenjang_relasi,
 		});
-		setEditingId(activities.kegiatan_id || null);
+
+		setEditingId(achievement.kegiatan_id || null);
 		setGambar(null);
 		setOpen(true);
 	};
@@ -260,7 +280,7 @@ const Acitivies = () => {
 	};
 
 	useEffect(() => {
-		fetchActivities();
+		fetchAchievements();
 	}, []);
 
 	// PAGINATION
@@ -277,12 +297,14 @@ const Acitivies = () => {
 		const endIndex = page * limit;
 		const slicedData = activitiesBackup.slice(startIndex, endIndex);
 
-		setActivitiesFiltered(slicedData);
+		setAchievementsFiltered(slicedData);
 	}, [page, activitiesBackup, limit, setPage]);
 
 	// FILTERING
 	useEffect(() => {
-		setActivitiesFiltered(activitiesBackup.filter((activities) => activities.judul.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, limit * page));
+		setAchievementsFiltered(
+			activitiesBackup.filter((achievement) => achievement.judul.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, limit * page),
+		);
 	}, [searchTerm, filterYear]);
 
 	return (
@@ -298,7 +320,7 @@ const Acitivies = () => {
 						{/* REFRESH */}
 						<Button
 							onClick={() => {
-								fetchActivities();
+								fetchAchievements();
 								setFilterYear("all");
 								setSearchTerm("");
 							}}
@@ -361,7 +383,11 @@ const Acitivies = () => {
 												<img src={URL.createObjectURL(gambar)} alt='Preview' className='w-full h-auto object-cover' />
 											) : formData.path_gambar ? (
 												/* 2. Jika tidak ada file baru, tapi ada path dari API (Edit mode) */
-												<img src={`${BASE_URL}/${formData.path_gambar}`} alt='Gambar Kegiatan' className='w-full h-auto object-cover' />
+												<img
+													src={`${BASE_URL}/${formData.path_gambar}`}
+													alt='Gambar Kegiatan'
+													className='w-full h-auto object-cover min-h-20 flex items-center justify-center'
+												/>
 											) : (
 												/* 3. Jika keduanya kosong (Add mode awal atau data memang kosong) */
 												<p className='py-10 text-neutral-500'>Tidak ada gambar</p>
@@ -388,49 +414,61 @@ const Acitivies = () => {
 										<Label htmlFor='content'>Konten Lengkap</Label>
 										<Textarea id='content' value={formData.konten} onChange={(e) => setFormData({ ...formData, konten: e.target.value })} rows={8} />
 									</div>
-									{/* JENJANG */}
+									{/* JENJANG - HANYA SUPER ADMINISTRATOR*/}
 									<div className='grid gap-4'>
 										<Label htmlFor=''>Jenjang</Label>
 										<div className='grid grid-cols-2 gap-4'>
 											{jenjang &&
-												jenjang.map((jenjang) => (
-													<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
-														<Input
-															id={`jenjang-${jenjang.kode_jenjang}`}
-															type='checkbox'
-															value={jenjang.jenjang_id}
-															checked={formData.jenjang.some((id) => id.jenjang_id === jenjang.jenjang_id)}
-															name='jenjang'
-															className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
-															onChange={(e) =>
-																setFormData((prev) => ({
-																	...prev,
-																	jenjang: e.target.checked ? [...prev.jenjang, jenjang] : prev.jenjang.filter((id) => id.jenjang_id !== jenjang.jenjang_id), // Jika tidak dicentang, hapus objek 'jenjang'
-																}))
-															}
-														/>
-														<Label htmlFor={`jenjang-${jenjang.kode_jenjang}`} className='w-full py-4 select-none ms-2 text-sm font-medium text-heading'>
-															{jenjang.nama_jenjang}
-														</Label>
-													</div>
-												))}
+												jenjang.map((item, idx) => {
+													return (
+														<div
+															className={`flex items-center ps-4  rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+																formData.jenjang_relasi.some((id) => id.jenjang_id === item.jenjang_id) && "border-blue-500"
+															}`}
+														>
+															<Input
+																id={`jenjang-${item.kode_jenjang}`}
+																type='checkbox'
+																value={item.jenjang_id}
+																checked={formData.jenjang_relasi.some((id) => id.jenjang_id === item.jenjang_id)}
+																name='jenjang'
+																className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
+																onChange={(e) => {
+																	setFormData((prev) => ({
+																		...prev,
+																		jenjang_relasi: e.target.checked
+																			? [...prev.jenjang_relasi, { kegiatan_id: formData.kegiatan_id, jenjang_id: item.jenjang_id, jenjang: item }]
+																			: prev.jenjang_relasi.filter((id) => id.jenjang_id !== item.jenjang_id),
+																	}));
+																}}
+															/>
+															<Label htmlFor={`jenjang-${item.kode_jenjang}`} className='w-full py-4 select-none ms-2 text-sm font-medium text-heading'>
+																{item.nama_jenjang}
+															</Label>
+														</div>
+													);
+												})}
 										</div>
 									</div>
 									{/* TAMPILKAN */}
 									<div className='grid gap-4'>
 										<Label htmlFor=''>Tampilkan</Label>
 										<div className='grid grid-cols-2 gap-4'>
-											<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
+											<div
+												className={`flex items-center ps-4 rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+													formData.is_published && "border-blue-500"
+												}`}
+											>
 												<Input
 													id={`is_published_true`}
 													type='checkbox'
 													checked={formData.is_published}
 													name='is_published'
-													className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
+													className='group-checked:border-red-600 w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? true : false,
+															is_published: prev.is_published ? true : e.target.checked,
 														}))
 													}
 												/>
@@ -438,7 +476,11 @@ const Acitivies = () => {
 													Ya
 												</Label>
 											</div>
-											<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
+											<div
+												className={`flex items-center ps-4 rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+													!formData.is_published && "border-blue-500"
+												}`}
+											>
 												<Input
 													id={`is_published_false`}
 													type='checkbox'
@@ -448,7 +490,7 @@ const Acitivies = () => {
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? false : true,
+															is_published: prev.is_published ? false : e.target.checked,
 														}))
 													}
 												/>
@@ -539,41 +581,47 @@ const Acitivies = () => {
 									</TableRow>
 								) : (
 									activitiesFiltered &&
-									activitiesFiltered.map((activities, index) => (
-										<TableRow key={activities.kegiatan_id}>
+									activitiesFiltered.map((achievement, index) => (
+										<TableRow key={achievement.kegiatan_id}>
 											<TableCell className='font-medium'>{(page - 1) * limit + index + 1}</TableCell>
 											<TableCell className='font-medium'>
 												<div style={{ height: "100px", width: "100px", overflow: "hidden" }}>
-													<img loading='lazy' height={100} width={100} src={`${BASE_URL}/${activities.path_gambar}`} alt='' />
+													<img loading='lazy' height={100} width={100} src={`${BASE_URL}/${achievement.path_gambar}`} alt='' />
 												</div>
 											</TableCell>
 											<TableCell className='font-medium'>
-												{activities.judul && activities.judul.length > 30 ? `${activities.judul.substring(0, 30)}...` : activities.judul}
+												{achievement.judul && achievement.judul.length > 30 ? `${achievement.judul.substring(0, 30)}...` : achievement.judul}
 											</TableCell>
 											<TableCell className='font-medium'>
-												{activities.deskripsi && activities.deskripsi.length > 30 ? `${activities.deskripsi.substring(0, 30)}...` : activities.deskripsi}
+												{achievement.deskripsi && achievement.deskripsi.length > 30 ? `${achievement.deskripsi.substring(0, 30)}...` : achievement.deskripsi}
 											</TableCell>
 											<TableCell className='font-medium'>
-												{activities.konten && activities.konten.length > 30 ? `${activities.konten.substring(0, 30)}...` : activities.konten}
+												{achievement.konten && achievement.konten.length > 30 ? `${achievement.konten.substring(0, 30)}...` : achievement.konten}
 											</TableCell>
-											<TableCell className='font-medium'>{activities.is_published ? "Ya" : "Tidak"}</TableCell>
-											<TableCell>{activities.tanggal_publikasi ? new Date(activities.tanggal_publikasi!).toLocaleDateString("id-ID") : "-"}</TableCell>
+											<TableCell className='font-medium'>{achievement.is_published ? "Ya" : "Tidak"}</TableCell>
+											<TableCell>
+												{achievement.tanggal_publikasi && achievement.tanggal_publikasi
+													? new Date(achievement.tanggal_publikasi!).toLocaleDateString("id-ID")
+													: "-"}
+											</TableCell>
 											<TableCell className='font-medium'>
-												{activities.jenjang_relasi &&
-													activities.jenjang_relasi.map((item) => (
-														<p key={item.jenjang_id} className={`px-2 py-2 m-1 rounded-full w-fit ${getGradeColors(item.jenjang.kode_jenjang)}`}>
-															{item.jenjang.kode_jenjang}
-														</p>
-													))}
+												{achievement.jenjang_relasi &&
+													achievement.jenjang_relasi.map((item: Jenjang_relasi) => {
+														return (
+															<p key={item.jenjang_id} className={`px-2 py-2 m-1 rounded-full w-fit ${getGradeColors(item.jenjang.kode_jenjang)}`}>
+																{item.jenjang.kode_jenjang}
+															</p>
+														);
+													})}
 											</TableCell>
 											<TableCell className='text-right flex gap-2'>
-												<Button size='sm' variant='outline' onClick={() => navigate(`/dashboard/activities/${activities.kegiatan_id}`)}>
+												<Button size='sm' variant='outline' onClick={() => navigate(`/dashboard/activities/${achievement.kegiatan_id}`)}>
 													<Eye className='h-4 w-4' />
 												</Button>
-												<Button size='sm' variant='outline' onClick={() => openEditDialog(activities)}>
+												<Button size='sm' variant='outline' onClick={() => openEditDialog(achievement)}>
 													<Pencil className='h-4 w-4' />
 												</Button>
-												<Button size='sm' variant='destructive' onClick={() => popupDelete(activities.kegiatan_id || "")}>
+												<Button size='sm' variant='destructive' onClick={() => popupDelete(achievement.kegiatan_id || "")}>
 													<Trash2 className='h-4 w-4' />
 												</Button>
 											</TableCell>
@@ -593,10 +641,10 @@ const Acitivies = () => {
 				</Card>
 
 				{/* PAGINATION */}
-				<DashboardPagination page={page} handlePageChange={handlePageChange} totalPages={totalPages} />
+				<DashboardPagination key={"activities-pagination"} page={page} handlePageChange={handlePageChange} totalPages={totalPages} />
 			</div>
 		</DashboardLayout>
 	);
 };
 
-export default Acitivies;
+export default Activities;

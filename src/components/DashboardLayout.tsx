@@ -16,6 +16,14 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "react-router-dom";
 import { useAppContext, UserInfo } from "@/utils/app-context";
+import { toast } from "react-toastify";
+import { getRequest } from "@/utils/api-call";
+
+const getUserPermission = async (id) => {
+	const res = await getRequest(`/users/${id}`);
+	console.log("res", res);
+	return res.data;
+};
 
 const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
 	const { open } = useSidebar();
@@ -23,19 +31,62 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
 	const pathname = useLocation().pathname;
 	const { isUserLoggedIn, logout } = useAppContext();
 	const menuItems = [
-		{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
-		{ title: "Profil Sekolah", url: "/dashboard/about", icon: FileText, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
-		{ title: "Prestasi", url: "/dashboard/achievements", icon: Trophy, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
-		{ title: "Kegiatan", url: "/dashboard/activities", icon: Calendar, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
-		{ title: "Pengumuman", url: "/dashboard/announcements", icon: Megaphone, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
-		{ title: "Kenaikan Kelas", url: "/dashboard/grade-promotions", icon: TrendingUp, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
-		{ title: "Nilai Mapel", url: "/dashboard/subject-grades", icon: BookOpen, roles: [ "Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
-		{ title: "Carousel", url: "/dashboard/carousels", icon: Image, roles: ["Super Administrator",'Kepala Sekolah PG-TK','Kepala Sekolah SD','Kepala Sekolah SMP','Kepala Sekolah SMA'] },
+		{
+			title: "Dashboard",
+			url: "/dashboard",
+			icon: LayoutDashboard,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
+		{
+			title: "Profil Sekolah",
+			url: "/dashboard/about",
+			icon: FileText,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
+		{
+			title: "Prestasi",
+			url: "/dashboard/achievements",
+			icon: Trophy,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
+		{
+			title: "Kegiatan",
+			url: "/dashboard/activities",
+			icon: Calendar,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
+		{
+			title: "Pengumuman",
+			url: "/dashboard/announcements",
+			icon: Megaphone,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
+		{
+			title: "Kenaikan Kelas",
+			url: "/dashboard/grade-promotions",
+			icon: TrendingUp,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
+		{
+			title: "Nilai Mapel",
+			url: "/dashboard/subject-grades",
+			icon: BookOpen,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
+		{
+			title: "Carousel",
+			url: "/dashboard/carousels",
+			icon: Image,
+			roles: ["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"],
+		},
 		{ title: "Users", url: "/dashboard/users", icon: UserPen, roles: ["Super Administrator"] },
 		{ title: "Roles", url: "/dashboard/roles", icon: UserCog, roles: ["Super Administrator"] },
 	];
 
+	const userPermission = getUserPermission(profile.userInfo.user_id);
+
 	const filteredMenuItems = menuItems.filter((item) => profile && item.roles.includes(profile.userInfo.role));
+	console.log(profile.userInfo.user_id);
 
 	if (!isUserLoggedIn) {
 		navigate("/auth");
@@ -76,7 +127,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
 };
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
-	const { checkingSession, userLoginInfo } = useAppContext();
+	const { checkingSession, userLoginInfo, isLoading } = useAppContext();
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -85,6 +136,15 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
 	if (!userLoginInfo) {
 		return <div className='flex items-center justify-center min-h-screen'>Loading...</div>;
+	}
+
+	if (!isLoading) {
+		if (!userLoginInfo) {
+			toast.error("Anda bukan admin", {
+				autoClose: 500,
+			});
+			return navigate("/auth");
+		}
 	}
 
 	return (

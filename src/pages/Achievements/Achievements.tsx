@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Search, RefreshCcw, Eye, Cloud, CloudUploadIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, RefreshCcw, Eye, Cloud, CloudUploadIcon, CheckIcon, MinusIcon } from "lucide-react";
 import { deleteRequest, getRequest, postRequest, putRequest } from "@/utils/api-call";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Swal from "sweetalert2";
@@ -18,6 +18,7 @@ import DashboardPagination from "@/components/sections/dashboardPagination";
 import { ApiResponse, Jenjang, Jenjang_relasi, Prestasi } from "@/types/data";
 
 interface InitialForm {
+	prestasi_id: string;
 	judul: string;
 	deskripsi: string;
 	konten: string;
@@ -28,10 +29,17 @@ interface InitialForm {
 	is_published: boolean;
 	is_featured: boolean;
 	updated_at: string;
-	jenjang: Jenjang[];
+	jenjang_relasi: JenjangRelasi[];
 }
 
+type JenjangRelasi = {
+	prestasi_id: string;
+	jenjang_id: string;
+	jenjang: Jenjang;
+};
+
 const initialFormData: InitialForm = {
+	prestasi_id: "",
 	judul: "",
 	deskripsi: "",
 	konten: "",
@@ -42,7 +50,17 @@ const initialFormData: InitialForm = {
 	is_published: true,
 	is_featured: true,
 	updated_at: "",
-	jenjang: [],
+	jenjang_relasi: [
+		{
+			jenjang_id: "",
+			prestasi_id: "",
+			jenjang: {
+				jenjang_id: "",
+				nama_jenjang: "",
+				kode_jenjang: "",
+			},
+		},
+	],
 };
 
 /**
@@ -79,7 +97,7 @@ const Achievements = () => {
 		try {
 			const responseData: ApiResponse<Prestasi> = await getRequest(`/prestasi?page=1&limit=1000`);
 			const fetchJenjang = await getRequest(`/jenjang`);
-			let filterBasedRole = "";
+			// let filterBasedRole = "";
 			// switch (userLoginInfo.userInfo.role) {
 			// 	case "Kepala Sekolah PG-TK":
 			// 		filterBasedRole = "PG-TK";
@@ -132,6 +150,7 @@ const Achievements = () => {
 					updated_at: new Date().toISOString(),
 					editor_user_id: userLoginInfo.userInfo.user_id,
 				};
+
 				const uploadAchievementData = await putRequest(`/prestasi/${editingId}`, dataToSubmit);
 
 				if (gambar) {
@@ -219,6 +238,7 @@ const Achievements = () => {
 		const formattedDate = achievement.tanggal_publikasi ? new Date(achievement.tanggal_publikasi!).toISOString().split("T")[0] : "";
 
 		setFormData({
+			prestasi_id: achievement.prestasi_id,
 			judul: achievement.judul,
 			deskripsi: achievement.deskripsi,
 			konten: achievement.konten,
@@ -229,7 +249,7 @@ const Achievements = () => {
 			updated_at: achievement.updated_at,
 			penulis_user_id: achievement.penulis_user_id,
 			editor_user_id: achievement.editor_user_id,
-			jenjang,
+			jenjang_relasi: achievement.jenjang_relasi,
 		});
 		setEditingId(achievement.prestasi_id || null);
 		setGambar(null);
@@ -305,6 +325,11 @@ const Achievements = () => {
 			achievementsBackup.filter((achievement) => achievement.judul.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, limit * page),
 		);
 	}, [searchTerm, filterYear]);
+
+	useEffect(() => {
+		console.log("jenjang", jenjang);
+		// console.log("formdata", formData);
+	}, [jenjang, formData]);
 
 	return (
 		<DashboardLayout>
@@ -382,7 +407,11 @@ const Achievements = () => {
 												<img src={URL.createObjectURL(gambar)} alt='Preview' className='w-full h-auto object-cover' />
 											) : formData.path_gambar ? (
 												/* 2. Jika tidak ada file baru, tapi ada path dari API (Edit mode) */
-												<img src={`${BASE_URL}/${formData.path_gambar}`} alt='Gambar Prestasi' className='w-full h-auto object-cover' />
+												<img
+													src={`${BASE_URL}/${formData.path_gambar}`}
+													alt='Gambar Prestasi'
+													className='w-full h-auto object-cover min-h-20 flex items-center justify-center'
+												/>
 											) : (
 												/* 3. Jika keduanya kosong (Add mode awal atau data memang kosong) */
 												<p className='py-10 text-neutral-500'>Tidak ada gambar</p>
@@ -410,50 +439,60 @@ const Achievements = () => {
 										<Textarea id='content' value={formData.konten} onChange={(e) => setFormData({ ...formData, konten: e.target.value })} rows={8} />
 									</div>
 									{/* JENJANG - HANYA SUPER ADMINISTRATOR*/}
-									{userLoginInfo.userInfo.role === "Super Administrator" && (
-										<div className='grid gap-4'>
-											<Label htmlFor=''>Jenjang</Label>
-											<div className='grid grid-cols-2 gap-4'>
-												{jenjang &&
-													jenjang.map((jenjang) => (
-														<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
+									<div className='grid gap-4'>
+										<Label htmlFor=''>Jenjang</Label>
+										<div className='grid grid-cols-2 gap-4'>
+											{jenjang &&
+												jenjang.map((item, idx) => {
+													return (
+														<div
+															className={`flex items-center ps-4  rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+																formData.jenjang_relasi.some((id) => id.jenjang_id === item.jenjang_id) && "border-blue-500"
+															}`}
+														>
 															<Input
-																id={`jenjang-${jenjang.kode_jenjang}`}
+																id={`jenjang-${item.kode_jenjang}`}
 																type='checkbox'
-																value={jenjang.jenjang_id}
-																checked={formData.jenjang.some((id) => id.jenjang_id === jenjang.jenjang_id)}
+																value={item.jenjang_id}
+																checked={formData.jenjang_relasi.some((id) => id.jenjang_id === item.jenjang_id)}
 																name='jenjang'
 																className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
 																onChange={(e) =>
 																	setFormData((prev) => ({
 																		...prev,
-																		jenjang: e.target.checked ? [...prev.jenjang, jenjang] : prev.jenjang.filter((id) => id.jenjang_id !== jenjang.jenjang_id), // Jika tidak dicentang, hapus objek 'jenjang'
+																		jenjang_relasi: e.target.checked
+																			? [...prev.jenjang_relasi, { prestasi_id: formData.prestasi_id, jenjang_id: item.jenjang_id, jenjang: item }]
+																			: prev.jenjang_relasi.filter((id) => id.jenjang_id !== item.jenjang_id),
 																	}))
 																}
 															/>
-															<Label htmlFor={`jenjang-${jenjang.kode_jenjang}`} className='w-full py-4 select-none ms-2 text-sm font-medium text-heading'>
-																{jenjang.nama_jenjang}
+															<Label htmlFor={`jenjang-${item.kode_jenjang}`} className='w-full py-4 select-none ms-2 text-sm font-medium text-heading'>
+																{item.nama_jenjang}
 															</Label>
 														</div>
-													))}
-											</div>
+													);
+												})}
 										</div>
-									)}
+									</div>
 									{/* TAMPILKAN */}
 									<div className='grid gap-4'>
 										<Label htmlFor=''>Tampilkan</Label>
 										<div className='grid grid-cols-2 gap-4'>
-											<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
+											<div
+												className={`flex items-center ps-4 rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+													formData.is_published && "border-blue-500"
+												}`}
+											>
 												<Input
 													id={`is_published_true`}
 													type='checkbox'
 													checked={formData.is_published}
 													name='is_published'
-													className='w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
+													className='group-checked:border-red-600 w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none'
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? true : false,
+															is_published: prev.is_published ? true : e.target.checked,
 														}))
 													}
 												/>
@@ -461,7 +500,11 @@ const Achievements = () => {
 													Ya
 												</Label>
 											</div>
-											<div className='flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base'>
+											<div
+												className={`flex items-center ps-4 rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
+													!formData.is_published && "border-blue-500"
+												}`}
+											>
 												<Input
 													id={`is_published_false`}
 													type='checkbox'
@@ -471,7 +514,7 @@ const Achievements = () => {
 													onChange={(e) =>
 														setFormData((prev) => ({
 															...prev,
-															is_published: e.target.checked ? false : true,
+															is_published: prev.is_published ? false : e.target.checked,
 														}))
 													}
 												/>
@@ -587,11 +630,13 @@ const Achievements = () => {
 											</TableCell>
 											<TableCell className='font-medium'>
 												{achievement.jenjang_relasi &&
-													achievement.jenjang_relasi.map((item: Jenjang_relasi) => (
-														<p key={item.jenjang_id} className={`px-2 py-2 m-1 rounded-full w-fit ${getGradeColors(item.jenjang.kode_jenjang)}`}>
-															{item.jenjang.kode_jenjang}
-														</p>
-													))}
+													achievement.jenjang_relasi.map((item: Jenjang_relasi) => {
+														return (
+															<p key={item.jenjang_id} className={`px-2 py-2 m-1 rounded-full w-fit ${getGradeColors(item.jenjang.kode_jenjang)}`}>
+																{item.jenjang.kode_jenjang}
+															</p>
+														);
+													})}
 											</TableCell>
 											<TableCell className='text-right flex gap-2'>
 												<Button size='sm' variant='outline' onClick={() => navigate(`/dashboard/achievements/${achievement.prestasi_id}`)}>
@@ -620,7 +665,7 @@ const Achievements = () => {
 				</Card>
 
 				{/* PAGINATION */}
-				<DashboardPagination page={page} handlePageChange={handlePageChange} totalPages={totalPages} />
+				<DashboardPagination key={"achievements-pagination"} page={page} handlePageChange={handlePageChange} totalPages={totalPages} />
 			</div>
 		</DashboardLayout>
 	);
