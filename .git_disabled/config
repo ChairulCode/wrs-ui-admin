@@ -1,0 +1,20 @@
+[core]
+	repositoryformatversion = 0
+	filemode = false
+	bare = false
+	logallrefupdates = true
+	symlinks = false
+	ignorecase = true
+[remote "origin"]
+	url = https://github.com/ChairulCode/wrs-ui-admin
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "master"]
+	gk-last-accessed = 2026-01-25T03:27:07.871Z
+	gk-last-modified = 2026-01-25T03:27:07.871Z
+	vscode-merge-base = origin/main
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+	vscode-merge-base = origin/main
+	gk-last-accessed = 2026-01-30T12:54:17.837Z
+	gk-last-modified = 2026-01-29T16:25:10.888Z
