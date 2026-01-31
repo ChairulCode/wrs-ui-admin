@@ -1,24 +1,12 @@
-<<<<<<< HEAD
-import DashboardLayout from "@/components/DashboardLayout";
-import React from "react";
+import React from 'react'
 
-const SubjectGrades = () => {
+const GradePromotions = () => {
   return (
-    <>
-      <DashboardLayout children="Nilai Mapel" />
-    </>
-  );
-};
+    <div>GradePromotions</div>
+  )
+}
 
-export default SubjectGrades;
-=======
-import React from "react";
-
-const SubjectGrades = () => {
-	return <div>SubjectGrades</div>;
-};
-
-export default SubjectGrades;
+export default GradePromotions
 
 // import { useEffect, useState } from "react";
 // import { supabase } from "@/integrations/supabase/client";
@@ -33,30 +21,28 @@ export default SubjectGrades;
 // import { toast } from "sonner";
 // import { Plus, Pencil, Trash2 } from "lucide-react";
 
-// interface SubjectGrade {
+// interface GradePromotion {
 //   id: string;
 //   academic_year: string;
-//   semester: string;
 //   student_name: string;
-//   grade: string;
-//   subject_name: string;
-//   score: number;
+//   current_grade: string;
+//   promoted_grade: string;
+//   status: string;
 //   notes: string | null;
 // }
 
-// const SubjectGrades = () => {
-//   const [grades, setGrades] = useState<SubjectGrade[]>([]);
+// const GradePromotions = () => {
+//   const [promotions, setPromotions] = useState<GradePromotion[]>([]);
 //   const [loading, setLoading] = useState(false);
 //   const [open, setOpen] = useState(false);
 //   const [editingId, setEditingId] = useState<string | null>(null);
 //   const [schoolLevel, setSchoolLevel] = useState<string>("");
 //   const [formData, setFormData] = useState({
 //     academic_year: "",
-//     semester: "",
 //     student_name: "",
-//     grade: "",
-//     subject_name: "",
-//     score: "",
+//     current_grade: "",
+//     promoted_grade: "",
+//     status: "promoted",
 //     notes: "",
 //   });
 
@@ -84,19 +70,19 @@ export default SubjectGrades;
 
 //     if (profile && roleData) {
 //       setSchoolLevel(profile.school_level || "");
-//       fetchGrades(roleData.role, profile.school_level);
+//       fetchPromotions(roleData.role, profile.school_level);
 //     }
 //   };
 
-//   const fetchGrades = async (role: string, level: string | null) => {
-//     const query = supabase.from("subject_grades").select("*").order("academic_year", { ascending: false });
-
+//   const fetchPromotions = async (role: string, level: string | null) => {
+//     const query = supabase.from("grade_promotions").select("*").order("academic_year", { ascending: false });
+    
 //     if (role === "admin" && level) {
 //       query.eq("school_level", level as any);
 //     }
 
 //     const { data } = await query;
-//     if (data) setGrades(data);
+//     if (data) setPromotions(data);
 //   };
 
 //   const handleSubmit = async (e: React.FormEvent) => {
@@ -104,29 +90,24 @@ export default SubjectGrades;
 //     setLoading(true);
 
 //     try {
-//       const dataToSubmit = {
-//         ...formData,
-//         score: parseFloat(formData.score),
-//       };
-
 //       if (editingId) {
 //         const { error } = await supabase
-//           .from("subject_grades")
-//           .update(dataToSubmit)
+//           .from("grade_promotions")
+//           .update(formData)
 //           .eq("id", editingId);
 
 //         if (error) throw error;
-//         toast.success("Nilai berhasil diupdate!");
+//         toast.success("Data berhasil diupdate!");
 //       } else {
 //         const { error } = await supabase
-//           .from("subject_grades")
+//           .from("grade_promotions")
 //           .insert({
-//             ...dataToSubmit,
+//             ...formData,
 //             school_level: schoolLevel as any,
 //           });
 
 //         if (error) throw error;
-//         toast.success("Nilai berhasil ditambahkan!");
+//         toast.success("Data berhasil ditambahkan!");
 //       }
 
 //       setOpen(false);
@@ -144,12 +125,12 @@ export default SubjectGrades;
 
 //     try {
 //       const { error } = await supabase
-//         .from("subject_grades")
+//         .from("grade_promotions")
 //         .delete()
 //         .eq("id", id);
 
 //       if (error) throw error;
-//       toast.success("Nilai berhasil dihapus!");
+//       toast.success("Data berhasil dihapus!");
 //       fetchProfile();
 //     } catch (error: any) {
 //       toast.error(error.message || "Terjadi kesalahan");
@@ -159,27 +140,25 @@ export default SubjectGrades;
 //   const resetForm = () => {
 //     setFormData({
 //       academic_year: "",
-//       semester: "",
 //       student_name: "",
-//       grade: "",
-//       subject_name: "",
-//       score: "",
+//       current_grade: "",
+//       promoted_grade: "",
+//       status: "promoted",
 //       notes: "",
 //     });
 //     setEditingId(null);
 //   };
 
-//   const openEditDialog = (grade: SubjectGrade) => {
+//   const openEditDialog = (promotion: GradePromotion) => {
 //     setFormData({
-//       academic_year: grade.academic_year,
-//       semester: grade.semester,
-//       student_name: grade.student_name,
-//       grade: grade.grade,
-//       subject_name: grade.subject_name,
-//       score: grade.score.toString(),
-//       notes: grade.notes || "",
+//       academic_year: promotion.academic_year,
+//       student_name: promotion.student_name,
+//       current_grade: promotion.current_grade,
+//       promoted_grade: promotion.promoted_grade,
+//       status: promotion.status,
+//       notes: promotion.notes || "",
 //     });
-//     setEditingId(grade.id);
+//     setEditingId(promotion.id);
 //     setOpen(true);
 //   };
 
@@ -188,8 +167,8 @@ export default SubjectGrades;
 //       <div className="space-y-6">
 //         <div className="flex items-center justify-between">
 //           <div>
-//             <h1 className="text-3xl font-bold tracking-tight">Nilai Mata Pelajaran</h1>
-//             <p className="text-muted-foreground">Kelola data nilai siswa</p>
+//             <h1 className="text-3xl font-bold tracking-tight">Kenaikan Kelas</h1>
+//             <p className="text-muted-foreground">Kelola data kenaikan kelas siswa</p>
 //           </div>
 //           <Dialog open={open} onOpenChange={(value) => {
 //             setOpen(value);
@@ -198,37 +177,24 @@ export default SubjectGrades;
 //             <DialogTrigger asChild>
 //               <Button>
 //                 <Plus className="h-4 w-4 mr-2" />
-//                 Tambah Nilai
+//                 Tambah Data
 //               </Button>
 //             </DialogTrigger>
-//             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+//             <DialogContent className="max-w-2xl">
 //               <DialogHeader>
-//                 <DialogTitle>{editingId ? "Edit Nilai" : "Tambah Nilai"}</DialogTitle>
-//                 <DialogDescription>Isi data nilai siswa</DialogDescription>
+//                 <DialogTitle>{editingId ? "Edit Data" : "Tambah Data Kenaikan Kelas"}</DialogTitle>
+//                 <DialogDescription>Isi data kenaikan kelas siswa</DialogDescription>
 //               </DialogHeader>
 //               <form onSubmit={handleSubmit} className="space-y-4">
-//                 <div className="grid grid-cols-2 gap-4">
-//                   <div className="space-y-2">
-//                     <Label htmlFor="academic_year">Tahun Ajaran</Label>
-//                     <Input
-//                       id="academic_year"
-//                       placeholder="2024/2025"
-//                       value={formData.academic_year}
-//                       onChange={(e) => setFormData({ ...formData, academic_year: e.target.value })}
-//                       required
-//                     />
-//                   </div>
-
-//                   <div className="space-y-2">
-//                     <Label htmlFor="semester">Semester</Label>
-//                     <Input
-//                       id="semester"
-//                       placeholder="Ganjil/Genap"
-//                       value={formData.semester}
-//                       onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-//                       required
-//                     />
-//                   </div>
+//                 <div className="space-y-2">
+//                   <Label htmlFor="academic_year">Tahun Ajaran</Label>
+//                   <Input
+//                     id="academic_year"
+//                     placeholder="2024/2025"
+//                     value={formData.academic_year}
+//                     onChange={(e) => setFormData({ ...formData, academic_year: e.target.value })}
+//                     required
+//                   />
 //                 </div>
 
 //                 <div className="space-y-2">
@@ -241,39 +207,25 @@ export default SubjectGrades;
 //                   />
 //                 </div>
 
-//                 <div className="space-y-2">
-//                   <Label htmlFor="grade">Kelas</Label>
-//                   <Input
-//                     id="grade"
-//                     placeholder="Kelas 1"
-//                     value={formData.grade}
-//                     onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
-//                     required
-//                   />
-//                 </div>
-
 //                 <div className="grid grid-cols-2 gap-4">
 //                   <div className="space-y-2">
-//                     <Label htmlFor="subject_name">Mata Pelajaran</Label>
+//                     <Label htmlFor="current_grade">Kelas Sekarang</Label>
 //                     <Input
-//                       id="subject_name"
-//                       placeholder="Matematika"
-//                       value={formData.subject_name}
-//                       onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
+//                       id="current_grade"
+//                       placeholder="Kelas 1"
+//                       value={formData.current_grade}
+//                       onChange={(e) => setFormData({ ...formData, current_grade: e.target.value })}
 //                       required
 //                     />
 //                   </div>
 
 //                   <div className="space-y-2">
-//                     <Label htmlFor="score">Nilai</Label>
+//                     <Label htmlFor="promoted_grade">Kelas Tujuan</Label>
 //                     <Input
-//                       id="score"
-//                       type="number"
-//                       step="0.01"
-//                       min="0"
-//                       max="100"
-//                       value={formData.score}
-//                       onChange={(e) => setFormData({ ...formData, score: e.target.value })}
+//                       id="promoted_grade"
+//                       placeholder="Kelas 2"
+//                       value={formData.promoted_grade}
+//                       onChange={(e) => setFormData({ ...formData, promoted_grade: e.target.value })}
 //                       required
 //                     />
 //                   </div>
@@ -299,45 +251,41 @@ export default SubjectGrades;
 
 //         <Card className="shadow-md">
 //           <CardHeader>
-//             <CardTitle>Daftar Nilai</CardTitle>
-//             <CardDescription>Total {grades.length} data nilai</CardDescription>
+//             <CardTitle>Daftar Kenaikan Kelas</CardTitle>
+//             <CardDescription>Total {promotions.length} data</CardDescription>
 //           </CardHeader>
 //           <CardContent>
 //             <Table>
 //               <TableHeader>
 //                 <TableRow>
-//                   <TableHead>TA/Semester</TableHead>
+//                   <TableHead>Tahun Ajaran</TableHead>
 //                   <TableHead>Nama Siswa</TableHead>
-//                   <TableHead>Kelas</TableHead>
-//                   <TableHead>Mata Pelajaran</TableHead>
-//                   <TableHead>Nilai</TableHead>
+//                   <TableHead>Kelas Asal</TableHead>
+//                   <TableHead>Kelas Tujuan</TableHead>
 //                   <TableHead className="text-right">Aksi</TableHead>
 //                 </TableRow>
 //               </TableHeader>
 //               <TableBody>
-//                 {grades.map((grade) => (
-//                   <TableRow key={grade.id}>
-//                     <TableCell className="font-medium">
-//                       {grade.academic_year} / {grade.semester}
-//                     </TableCell>
-//                     <TableCell>{grade.student_name}</TableCell>
-//                     <TableCell>{grade.grade}</TableCell>
-//                     <TableCell>{grade.subject_name}</TableCell>
-//                     <TableCell className="font-semibold">{grade.score}</TableCell>
+//                 {promotions.map((promotion) => (
+//                   <TableRow key={promotion.id}>
+//                     <TableCell className="font-medium">{promotion.academic_year}</TableCell>
+//                     <TableCell>{promotion.student_name}</TableCell>
+//                     <TableCell>{promotion.current_grade}</TableCell>
+//                     <TableCell>{promotion.promoted_grade}</TableCell>
 //                     <TableCell className="text-right space-x-2">
-//                       <Button size="sm" variant="outline" onClick={() => openEditDialog(grade)}>
+//                       <Button size="sm" variant="outline" onClick={() => openEditDialog(promotion)}>
 //                         <Pencil className="h-4 w-4" />
 //                       </Button>
-//                       <Button size="sm" variant="destructive" onClick={() => handleDelete(grade.id)}>
+//                       <Button size="sm" variant="destructive" onClick={() => handleDelete(promotion.id)}>
 //                         <Trash2 className="h-4 w-4" />
 //                       </Button>
 //                     </TableCell>
 //                   </TableRow>
 //                 ))}
-//                 {grades.length === 0 && (
+//                 {promotions.length === 0 && (
 //                   <TableRow>
-//                     <TableCell colSpan={6} className="text-center text-muted-foreground">
-//                       Belum ada data nilai
+//                     <TableCell colSpan={5} className="text-center text-muted-foreground">
+//                       Belum ada data kenaikan kelas
 //                     </TableCell>
 //                   </TableRow>
 //                 )}
@@ -350,5 +298,4 @@ export default SubjectGrades;
 //   );
 // };
 
-// export default SubjectGrades;
->>>>>>> e7d98b4189bc814cc708844ee82c37cc9087fce8
+// export default GradePromotions;

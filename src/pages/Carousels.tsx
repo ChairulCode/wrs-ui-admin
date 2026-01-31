@@ -103,8 +103,12 @@ const CarouselsPage = () => {
 			// const filterByRole =
 			// 	filterBasedRole &&
 			// 	responseData.data.filter((carousels) => carousels.jenjang_relasi.filter((relasi) => relasi.jenjang.kode_jenjang === filterBasedRole));
+<<<<<<< HEAD
 			// const sortData = responseData.data.sort((a: Carousel, b: Carousel) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 			const sortData = responseData.data.sort((a: Carousel, b: Carousel) =>a.judul.localeCompare(b.judul));
+=======
+			const sortData = responseData.data.sort((a: Carousel, b: Carousel) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+>>>>>>> e7d98b4189bc814cc708844ee82c37cc9087fce8
 			setCarouselsBackup(sortData);
 			setCarouselsFiltered(sortData?.slice(limit * (page - 1), limit * page));
 			setJenjang(fetchJenjang.data);

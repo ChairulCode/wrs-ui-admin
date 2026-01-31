@@ -117,8 +117,12 @@ const Achievements = () => {
 			// const filterByRole =
 			// 	filterBasedRole &&
 			// 	responseData.data.filter((achievement) => achievement.jenjang_relasi.filter((relasi) => relasi.jenjang.kode_jenjang === filterBasedRole));
+<<<<<<< HEAD
 			// const sortData = responseData.data.sort((a: Prestasi, b: Prestasi) => a.judul.localeCompare(b.judul));
 			const sortData = responseData.data.sort((a: Prestasi, b: Prestasi) => a.judul.localeCompare(b.judul));
+=======
+			const sortData = responseData.data.sort((a: Prestasi, b: Prestasi) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+>>>>>>> e7d98b4189bc814cc708844ee82c37cc9087fce8
 			setAchievementsBackup(sortData);
 			setAchievementsFiltered(sortData?.slice(limit * (page - 1), limit * page));
 			setJenjang(fetchJenjang.data);
