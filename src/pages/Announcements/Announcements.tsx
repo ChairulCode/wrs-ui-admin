@@ -93,12 +93,7 @@ const AnnouncementsPage = () => {
 			const responseData = await getRequest(`/pengumuman?page=1&limit=1000`);
 			const fetchJenjang = await getRequest(`/jenjang`);
 
-<<<<<<< HEAD
-			// const sortData = responseData.data.sort((a: Pengumuman, b: Pengumuman) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-			const sortData = responseData.data.sort((a: Pengumuman, b: Pengumuman) =>a.judul.localeCompare(b.judul));
-=======
 			const sortData = responseData.data.sort((a: Pengumuman, b: Pengumuman) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
->>>>>>> e7d98b4189bc814cc708844ee82c37cc9087fce8
 			setAnnouncementsBackup(sortData);
 			setAnnouncementsFiltered(sortData.slice(limit * (page - 1), limit * page));
 			setJenjang(fetchJenjang.data);

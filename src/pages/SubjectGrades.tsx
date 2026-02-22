@@ -1,17 +1,3 @@
-<<<<<<< HEAD
-import DashboardLayout from "@/components/DashboardLayout";
-import React from "react";
-
-const SubjectGrades = () => {
-  return (
-    <>
-      <DashboardLayout children="Nilai Mapel" />
-    </>
-  );
-};
-
-export default SubjectGrades;
-=======
 import React from "react";
 
 const SubjectGrades = () => {
@@ -351,4 +337,3 @@ export default SubjectGrades;
 // };
 
 // export default SubjectGrades;
->>>>>>> e7d98b4189bc814cc708844ee82c37cc9087fce8
