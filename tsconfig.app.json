@@ -25,5 +25,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "../server/src/shared/utils/dummy.ts"]
+  "include": ["src"]
 }

@@ -8,165 +8,203 @@ import { useNavigate } from "react-router-dom";
 moment.locale("id");
 
 interface JwtUserPayload {
-	user_id: string;
-	email: string;
-	role_id: number;
-	iat: number;
-	exp: number;
+  user_id: string;
+  email: string;
+  role_id: number;
+  iat: number;
+  exp: number;
 }
 
 interface KontenWeb {
-	konten_id: string;
-	konten_key: string;
-	konten_value: string;
+  konten_id: string;
+  konten_key: string;
+  konten_value: string;
 }
 
 interface LoginForm {
-	email: string;
-	password: string;
+  email: string;
+  password: string;
 }
 
 export interface UserInfo {
-	userInfo: {
-		user_id: string;
-		username: string;
-		email: string;
-		role: string;
-	};
-	iat: number;
-	exp: number;
+  userInfo: {
+    user_id: string;
+    username: string;
+    email: string;
+    role: string;
+  };
+  iat: number;
+  exp: number;
 }
 
 interface AppContextType {
-	getWebContentValue: (key: string, defaultValue?: string) => string;
-	login: (formData: { email: string; password: string }) => Promise<UserInfo | null>;
-	logout: () => Promise<void>;
-	checkingSession: () => Promise<void>;
+  getWebContentValue: (key: string, defaultValue?: string) => string;
+  login: (formData: {
+    email: string;
+    password: string;
+  }) => Promise<UserInfo | null>;
+  logout: () => Promise<void>;
+  checkingSession: () => Promise<void>;
 
-	userLoginInfo: UserInfo | null;
-	isUserLoggedIn: boolean;
-	isAdmin: boolean;
-	isLoading: boolean;
+  userLoginInfo: UserInfo | null;
+  isUserLoggedIn: boolean;
+  isAdmin: boolean;
+  isLoading: boolean;
 
-	setIsUserLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
-	setuserLoginInfo: React.Dispatch<React.SetStateAction<UserInfo | null>>;
-	setisAdmin: React.Dispatch<React.SetStateAction<boolean>>;
-	setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-	setwebContents: React.Dispatch<React.SetStateAction<KontenWeb[]>>;
+  setIsUserLoggedIn: React.Dispatch<React.SetStateAction<boolean>>;
+  setuserLoginInfo: React.Dispatch<React.SetStateAction<UserInfo | null>>;
+  setisAdmin: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  setwebContents: React.Dispatch<React.SetStateAction<KontenWeb[]>>;
 }
 
 const Context_for_App = createContext<AppContextType | null>(null);
 
 export const useAppContext = () => {
-	const context = useContext(Context_for_App);
+  const context = useContext(Context_for_App);
 
-	if (context === null) {
-		throw new Error("useAppContext harus digunakan di dalam AppContextProvider");
-	}
+  if (context === null) {
+    throw new Error(
+      "useAppContext harus digunakan di dalam AppContextProvider",
+    );
+  }
 
-	return context;
+  return context;
 };
 
-export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-	const [userLoginInfo, setuserLoginInfo] = useState<UserInfo | null>(null);
-	const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
-	const [isAdmin, setisAdmin] = useState(false);
-	const [isLoading, setIsLoading] = useState(true);
+export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [userLoginInfo, setuserLoginInfo] = useState<UserInfo | null>(null);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+  const [isAdmin, setisAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-	const login = async (formData: LoginForm) => {
-		try {
-			const userRes = await postRequest(`/auth/login`, {
-				email: formData.email,
-				password: formData.password,
-			});
+  const login = async (formData: LoginForm) => {
+    try {
+      const response = await postRequest(`/auth/login`, {
+        email: formData.email,
+        password: formData.password,
+      });
 
-			if (!userRes) {
-				throw new Error("Email atau password salah.");
-			}
+      // DEBUG untuk memastikan data masuk
+      console.log("Data yang diterima context:", response);
 
-			localStorage.setItem("authToken", userRes.data.token.apiKey);
-			const userInfo = userRes;
-			setuserLoginInfo({ ...userInfo.data.userInfo, loggedIn: userInfo.loggedIn });
-			setIsUserLoggedIn(true);
-			setisAdmin(["Super Administrator", "Kepala Sekolah PG-TK", "Kepala Sekolah SD", "Kepala Sekolah SMP", "Kepala Sekolah SMA"].includes(userInfo.data.role));
-			await checkingSession();
-			console.log(userLoginInfo);
+      // Perbaikan Path: Langsung ke response.token karena response sudah merupakan isi dari res.data
+      if (response && response.token && response.token.apiKey) {
+        const token = response.token.apiKey;
 
-			return userLoginInfo;
-		} catch (error) {
-			console.error("Login failed", error);
-			return null;
-		}
-	};
+        // SIMPAN KE LOCAL STORAGE
+        localStorage.setItem("authToken", token);
+        console.log("Token berhasil disimpan ke LocalStorage");
 
-	const logout = async () => {
-		try {
-			localStorage.removeItem("authToken");
-			setIsUserLoggedIn(false);
-			setisAdmin(false);
-			toast.success("Berhasil logout", { theme: "colored" });
-			window.location.href = "/auth";
-		} catch (error) {
-			console.error("Failed to log out", error);
-		}
-	};
+        // Update State menggunakan data userInfo dari response
+        setuserLoginInfo(response.userInfo);
+        setIsUserLoggedIn(true);
 
-	const checkingSession = async () => {
-		try {
-			const authRes = await getRequest("/auth/auth-status");
-			const token = localStorage.getItem("authToken");
+        // Cek Admin berdasarkan nama role
+        const roleName = response.userInfo.role;
+        setisAdmin(
+          [
+            "Super Administrator",
+            "Kepala Sekolah PG-TK",
+            "Kepala Sekolah SD",
+            "Kepala Sekolah SMP",
+            "Kepala Sekolah SMA",
+          ].includes(roleName),
+        );
 
-			if (!token) {
-				throw new Error("No token found");
-			}
-			const { exp } = jwtDecode<JwtUserPayload>(token);
-			console.log("expiry date", moment(exp * 1000).fromNow());
-			const now = Math.floor(Date.now() / 1000);
+        return response;
+      } else {
+        console.error(
+          "Struktur token tidak ditemukan. Cek isi 'response' di atas.",
+        );
+        return null;
+      }
+    } catch (error) {
+      console.error("Login Error:", error);
+      return null;
+    }
+  };
 
-			if (exp < now) {
-				console.warn("Token has expired!");
-				logout();
-				return false;
-			}
-			setuserLoginInfo({ ...authRes.data, loggedIn: authRes.loggedIn });
-			setIsUserLoggedIn(authRes.loggedIn ? true : false);
-			return true;
-		} catch (error) {
-			console.error("Session check failed", error);
-			setIsUserLoggedIn(false);
-			return false;
-		} finally {
-			setIsLoading(false);
-		}
-	};
+  const logout = async () => {
+    try {
+      localStorage.removeItem("authToken");
+      setIsUserLoggedIn(false);
+      setisAdmin(false);
+      toast.success("Berhasil logout", { theme: "colored" });
+      window.location.href = "/auth";
+    } catch (error) {
+      console.error("Failed to log out", error);
+    }
+  };
 
-	useEffect(() => {
-		console.log("checking Session");
-		checkingSession();
-	}, []);
+  const checkingSession = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        setIsUserLoggedIn(false);
+        setIsLoading(false);
+        return false;
+      }
 
-	const contextValue: AppContextType = {
-		login,
-		logout,
-		checkingSession,
+      // Request status auth
+      const authRes = await getRequest("/auth/auth-status");
 
-		userLoginInfo,
-		isUserLoggedIn,
-		isAdmin,
-		isLoading,
+      if (authRes) {
+        const { exp } = jwtDecode<JwtUserPayload>(token);
+        const now = Math.floor(Date.now() / 1000);
 
-		setIsUserLoggedIn,
-		setuserLoginInfo,
-		setisAdmin,
-		setIsLoading,
-	};
+        if (exp < now) {
+          logout();
+          return false;
+        }
 
-	return (
-		<Context_for_App.Provider
-			value={contextValue} // Menggunakan objek yang sudah divalidasi tipenya
-		>
-			{children}
-			<ToastContainer />
-		</Context_for_App.Provider>
-	);
+        setuserLoginInfo(authRes.data);
+        setIsUserLoggedIn(true);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Session check failed", error);
+      setIsUserLoggedIn(false);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      checkingSession();
+    } else {
+      setIsLoading(false); // Langsung matikan loading jika tidak ada token
+    }
+  }, []);
+
+  const contextValue: AppContextType = {
+    login,
+    logout,
+    checkingSession,
+
+    userLoginInfo,
+    isUserLoggedIn,
+    isAdmin,
+    isLoading,
+
+    setIsUserLoggedIn,
+    setuserLoginInfo,
+    setisAdmin,
+    setIsLoading,
+  };
+
+  return (
+    <Context_for_App.Provider
+      value={contextValue} // Menggunakan objek yang sudah divalidasi tipenya
+    >
+      {children}
+      <ToastContainer />
+    </Context_for_App.Provider>
+  );
 };

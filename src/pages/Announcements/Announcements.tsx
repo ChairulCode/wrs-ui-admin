@@ -92,8 +92,8 @@ const AnnouncementsPage = () => {
 		try {
 			const responseData = await getRequest(`/pengumuman?page=1&limit=1000`);
 			const fetchJenjang = await getRequest(`/jenjang`);
-
-			const sortData = responseData.data.sort((a: Pengumuman, b: Pengumuman) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+			// const sortData = responseData.data.sort((a: Pengumuman, b: Pengumuman) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+			const sortData = responseData.data.sort((a: Pengumuman, b: Pengumuman) =>a.judul.localeCompare(b.judul));
 			setAnnouncementsBackup(sortData);
 			setAnnouncementsFiltered(sortData.slice(limit * (page - 1), limit * page));
 			setJenjang(fetchJenjang.data);
@@ -260,8 +260,8 @@ const AnnouncementsPage = () => {
 	// FILTERING
 	useEffect(() => {
 		setAnnouncementsFiltered(
-			announcementsBackup.filter((announcements) => announcements.judul.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, limit * page),
-		);
+  announcementsBackup.filter((announcements: Pengumuman) => announcements.judul.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, limit * page),
+);
 	}, [searchTerm, filterYear]);
 
 	return (

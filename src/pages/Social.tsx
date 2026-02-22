@@ -11,11 +11,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Trash2, Edit3, Plus } from "lucide-react";
+import { Trash2, Edit3, Plus, Lock } from "lucide-react";
+import { useAppContext } from "@/utils/app-context"; // Import context untuk ambil user info
 
 const API_URL = "http://localhost:3000/api/v1/sosial";
 
-// 1. Definisikan Interface agar tidak error 'never'
 interface SocialMedia {
   social_media_id: string | number;
   platform: string;
@@ -25,7 +25,6 @@ interface SocialMedia {
   is_active: boolean;
 }
 
-// --- KOMPONEN SKELETON LOADING ---
 const SocialSkeleton = () => {
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16 animate-pulse">
@@ -50,13 +49,12 @@ const SocialSkeleton = () => {
 };
 
 const Social = () => {
-  // 2. Gunakan tipe data <SocialMedia[]>
+  const { userLoginInfo } = useAppContext(); // Ambil info user yang login
   const [socialData, setSocialData] = useState<SocialMedia[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 3. Update fungsi helper: Menggunakan 'authToken' sesuai Local Storage Anda
   const getAuthConfig = () => {
     const token = localStorage.getItem("authToken");
     return { headers: { Authorization: `Bearer ${token}` } };
@@ -71,7 +69,6 @@ const Social = () => {
     is_active: true,
   });
 
-  // 4. Tambahkan Config Header pada GET request agar tidak "Missing Authorization"
   const fetchSocials = async () => {
     try {
       const config = getAuthConfig();
@@ -79,7 +76,6 @@ const Social = () => {
       setSocialData(response.data.data || []);
     } catch (error: any) {
       console.error("Gagal load data", error);
-      // Jika token expired (401 atau 403), infokan ke user
       if (error.response?.status === 401 || error.response?.status === 403) {
         alert("Sesi Anda berakhir, silakan login kembali.");
       }
@@ -92,11 +88,41 @@ const Social = () => {
     fetchSocials();
   }, []);
 
+  // Fungsi untuk mendapatkan level yang diizinkan berdasarkan role
+  const getAllowedLevels = () => {
+    const role = userLoginInfo?.userInfo?.role;
+
+    // Super Administrator dan Admin bisa akses semua
+    if (role === "Super Administrator" || role === "Admin") {
+      return ["SMA", "SMP", "SD", "PGTK"];
+    }
+
+    // Kepala Sekolah hanya bisa akses tingkatan mereka
+    if (role === "Kepala Sekolah SMA") return ["SMA"];
+    if (role === "Kepala Sekolah SMP") return ["SMP"];
+    if (role === "Kepala Sekolah SD") return ["SD"];
+    if (role === "Kepala Sekolah PG-TK") return ["PGTK"];
+
+    return []; // Default tidak ada akses
+  };
+
+  // Fungsi untuk cek apakah user bisa edit level tertentu
+  const canEditLevel = (level: string) => {
+    const allowedLevels = getAllowedLevels();
+    return allowedLevels.includes(level);
+  };
+
   const handleOpenModal = (
     level: string,
     platform: string,
     existingData: SocialMedia | null = null,
   ) => {
+    // Cek apakah user punya akses ke level ini
+    if (!canEditLevel(level)) {
+      alert("Anda tidak memiliki akses untuk mengelola tingkatan ini.");
+      return;
+    }
+
     if (existingData) {
       setFormData({
         social_media_id: existingData.social_media_id,
@@ -121,19 +147,24 @@ const Social = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Double check permission sebelum submit
+    if (!canEditLevel(formData.level)) {
+      alert("Anda tidak memiliki akses untuk mengelola tingkatan ini.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const config = getAuthConfig();
 
       if (formData.social_media_id) {
-        // Mode Edit
         await axios.put(
           `${API_URL}/${formData.social_media_id}`,
           formData,
           config,
         );
       } else {
-        // Mode Tambah Baru
         await axios.post(API_URL, formData, config);
       }
 
@@ -149,7 +180,13 @@ const Social = () => {
     }
   };
 
-  const handleDelete = async (id: string | number) => {
+  const handleDelete = async (id: string | number, level: string) => {
+    // Cek permission sebelum delete
+    if (!canEditLevel(level)) {
+      alert("Anda tidak memiliki akses untuk menghapus data tingkatan ini.");
+      return;
+    }
+
     if (window.confirm("Apakah Anda yakin ingin menghapus link ini?")) {
       try {
         const config = getAuthConfig();
@@ -171,84 +208,119 @@ const Social = () => {
   const platforms = [
     {
       name: "Instagram",
-      color: "from-[#833ab4] via-[#fd1d1d] to-[#fcb045]", // Gradasi khas Instagram
+      color: "from-[#833ab4] via-[#fd1d1d] to-[#fcb045]",
       hover: "hover:shadow-[#fd1d1d]/20",
     },
     {
       name: "Youtube",
-      color: "from-[#FF0000] to-[#cc0000]", // Merah YouTube
+      color: "from-[#FF0000] to-[#cc0000]",
       hover: "hover:shadow-[#FF0000]/20",
     },
     {
       name: "Facebook",
-      color: "from-[#1877F2] to-[#0d65d9]", // Biru Facebook
+      color: "from-[#1877F2] to-[#0d65d9]",
       hover: "hover:shadow-[#1877F2]/20",
     },
     {
       name: "Tiktok",
-      color: "from-[#000000] via-[#25F4EE] to-[#FE2C55]", // Hitam-Cyan-Pink TikTok
+      color: "from-[#000000] via-[#25F4EE] to-[#FE2C55]",
       hover: "hover:shadow-[#FE2C55]/20",
     },
   ];
 
+  // Filter levels berdasarkan akses user
+  const allowedLevels = getAllowedLevels();
+  const filteredLevels = levels.filter((lvl) => allowedLevels.includes(lvl.id));
+
   return (
     <DashboardLayout>
       <div className="min-h-screen p-8">
+        {/* Info Role User */}
+        <div className="max-w-6xl mx-auto mb-6">
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold">Role Anda:</span>{" "}
+              {userLoginInfo?.userInfo?.role || "Unknown"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {allowedLevels.length === 4
+                ? "Anda memiliki akses ke semua tingkatan"
+                : `Anda hanya dapat mengelola tingkatan: ${allowedLevels.join(", ")}`}
+            </p>
+          </div>
+        </div>
+
         {loading ? (
           <SocialSkeleton />
         ) : (
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-16">
-            {levels.map((lvl) => (
-              <div key={lvl.id} className="flex flex-col gap-4">
-                <div className="flex items-center gap-3">
-                  {/* <span className="p-2 border-2 border-yellow-400 rounded-lg text-yellow-500 font-bold">
-                    ↗
-                  </span> */}
-                  <h2 className="text-xl font-extrabold text-slate-800">
-                    {lvl.title}
-                  </h2>
-                </div>
+            {filteredLevels.map((lvl) => {
+              const hasAccess = canEditLevel(lvl.id);
 
-                <div className="grid grid-cols-2 gap-4">
-                  {platforms.map((p) => {
-                    const data = socialData.find(
-                      (s) => s.level === lvl.id && s.platform === p.name,
-                    );
-                    return (
-                      <div key={p.name} className="relative group">
-                        <button
-                          onClick={() =>
-                            handleOpenModal(lvl.id, p.name, data || null)
-                          }
-                          className={`w-full bg-gradient-to-r ${p.color} text-white py-4 px-4 rounded-2xl font-bold shadow-md transition hover:scale-[1.02] active:scale-95 text-left`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <span>{p.name}</span>
-                            {data ? (
-                              <Edit3 size={14} className="opacity-50" />
-                            ) : (
-                              <Plus size={14} />
-                            )}
-                          </div>
-                          <div className="text-[10px] font-normal truncate mt-1 opacity-90">
-                            {data ? `@${data.username}` : "Belum diatur"}
-                          </div>
-                        </button>
+              return (
+                <div key={lvl.id} className="flex flex-col gap-4">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-extrabold text-slate-800">
+                      {lvl.title}
+                    </h2>
+                    {!hasAccess && (
+                      <Lock size={16} className="text-muted-foreground" />
+                    )}
+                  </div>
 
-                        {data && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {platforms.map((p) => {
+                      const data = socialData.find(
+                        (s) => s.level === lvl.id && s.platform === p.name,
+                      );
+
+                      return (
+                        <div key={p.name} className="relative group">
                           <button
-                            onClick={() => handleDelete(data.social_media_id)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                            onClick={() =>
+                              hasAccess
+                                ? handleOpenModal(lvl.id, p.name, data || null)
+                                : alert(
+                                    "Anda tidak memiliki akses untuk mengelola tingkatan ini.",
+                                  )
+                            }
+                            disabled={!hasAccess}
+                            className={`w-full bg-gradient-to-r ${p.color} text-white py-4 px-4 rounded-2xl font-bold shadow-md transition hover:scale-[1.02] active:scale-95 text-left ${
+                              !hasAccess ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                           >
-                            <Trash2 size={12} />
+                            <div className="flex justify-between items-start">
+                              <span>{p.name}</span>
+                              {!hasAccess ? (
+                                <Lock size={14} className="opacity-70" />
+                              ) : data ? (
+                                <Edit3 size={14} className="opacity-50" />
+                              ) : (
+                                <Plus size={14} />
+                              )}
+                            </div>
+                            <div className="text-[10px] font-normal truncate mt-1 opacity-90">
+                              {data ? `@${data.username}` : "Belum diatur"}
+                            </div>
                           </button>
-                        )}
-                      </div>
-                    );
-                  })}
+
+                          {data && hasAccess && (
+                            <button
+                              onClick={() =>
+                                handleDelete(data.social_media_id, lvl.id)
+                              }
+                              className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -268,7 +340,6 @@ const Social = () => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Input Username (Penting agar tidak kosong di database) */}
             <div className="space-y-2">
               <Label htmlFor="username">Username / Nama Akun</Label>
               <Input
