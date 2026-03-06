@@ -8,6 +8,8 @@ import {
   Loader2,
   Lock,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,234 +41,277 @@ import { toast } from "sonner";
 import api from "@/lib/axios";
 import { useAppContext } from "@/utils/app-context";
 
+// ─── Helper: ISO / YYYYMMDD → YYYY-MM-DD untuk input[type=date] ─────────────
+const toDateInput = (raw?: string): string => {
+  if (!raw) return "";
+  // Sudah format ISO lengkap (dari DB via Prisma: "2005-08-17T00:00:00.000Z")
+  if (raw.includes("T") || raw.includes("-")) return raw.substring(0, 10);
+  // Format YYYYMMDD (dari seeding lama)
+  if (raw.length === 8)
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  return "";
+};
+
+// ─── Helper: YYYY-MM-DD (dari input date) → YYYYMMDD untuk dikirim ke backend ─
+// Backend service.buatKelulusan menerima ISO string (isISO8601 di validator),
+// tapi editKelulusan juga menerima ISO. Kita kirim YYYY-MM-DD (valid ISO8601).
+const toISODate = (dateInput: string): string => dateInput; // "YYYY-MM-DD" sudah valid ISO8601
+
+// ─── Label kelas ──────────────────────────────────────────────────────────────
+const KELAS_LABEL: Record<string, string> = {
+  XII_MIPA: "XII IPA",
+  XII_IPS: "XII IPS",
+};
+
+// ─── Tipe data ────────────────────────────────────────────────────────────────
+interface KelulusanItem {
+  kelulusan_id: string;
+  nomor_siswa: string;
+  nama_siswa: string;
+  kelas: "XII_MIPA" | "XII_IPS";
+  tanggal_lahir?: string | null;
+  tahun_ajaran: string;
+  status_lulus: boolean;
+  keterangan?: string | null;
+  jenjang_id: string;
+  jenjang?: { jenjang_id: string; nama_jenjang: string } | null;
+}
+
+interface PaginationMeta {
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+  limit: number;
+}
+
+interface FormData {
+  nomor_siswa: string;
+  nama_siswa: string;
+  jenjang_id: string;
+  tahun_ajaran: string;
+  kelas: string;
+  tanggal_lahir: string; // YYYY-MM-DD (untuk input[type=date])
+  status_lulus: boolean;
+  keterangan: string;
+}
+
+const INITIAL_FORM: FormData = {
+  nomor_siswa: "",
+  nama_siswa: "",
+  jenjang_id: "",
+  tahun_ajaran: "2024/2025",
+  kelas: "XII_MIPA",
+  tanggal_lahir: "",
+  status_lulus: true,
+  keterangan: "",
+};
+
+// ─── Komponen ─────────────────────────────────────────────────────────────────
 const GraduationAnnouncement = () => {
   const { userLoginInfo, isLoading: contextLoading } = useAppContext();
 
-  // --- States ---
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<KelulusanItem[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [jenjangList, setJenjangList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedJenjang, setSelectedJenjang] = useState("semua");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_LIMIT = 20;
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedData, setSelectedData] = useState<any>(null);
+  const [selectedData, setSelectedData] = useState<KelulusanItem | null>(null);
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
+  const [submitting, setSubmitting] = useState(false);
 
-  // --- Form States ---
-  const [formData, setFormData] = useState({
-    nomor_siswa: "",
-    nama_siswa: "",
-    jenjang_id: "",
-    tahun_ajaran: "2024/2025",
-    status_lulus: true,
-    keterangan: "",
-  });
-
-  // Fungsi untuk cek apakah user adalah Super Admin atau Admin
+  // ── Permission helpers ────────────────────────────────────────────────────
   const isSuperAdminOrAdmin = () => {
     const role = userLoginInfo?.userInfo?.role;
     return role === "Super Administrator" || role === "Admin";
   };
 
-  // Fungsi untuk mendapatkan jenjang yang diizinkan berdasarkan role
-  const getAllowedJenjang = () => {
+  const getAllowedJenjang = (): "ALL" | string[] => {
     const role = userLoginInfo?.userInfo?.role;
-
-    // Super Administrator dan Admin bisa akses SEMUA
-    if (role === "Super Administrator" || role === "Admin") {
-      return "ALL"; // Return special flag untuk akses semua
-    }
-
-    // Mapping role ke jenjang - sesuaikan dengan nama jenjang di database
+    if (role === "Super Administrator" || role === "Admin") return "ALL";
     if (role === "Kepala Sekolah SMA") return ["SMA"];
     if (role === "Kepala Sekolah SMP") return ["SMP"];
     if (role === "Kepala Sekolah SD") return ["SD"];
-    if (role === "Kepala Sekolah PG-TK") return ["PG-TK", "PGTK", "TK"]; // Handle berbagai variasi nama
-
+    if (role === "Kepala Sekolah PG-TK") return ["PG-TK", "PGTK", "TK"];
     return [];
   };
 
-  // Fungsi untuk cek apakah user bisa akses jenjang tertentu
-  const canAccessJenjang = (namaJenjang: string) => {
-    const allowedJenjang = getAllowedJenjang();
-
-    // Jika Super Admin atau Admin, return true untuk semua
-    if (allowedJenjang === "ALL") {
-      return true;
-    }
-
-    // Untuk role lain, cek apakah jenjang ada di allowed list
-    if (Array.isArray(allowedJenjang)) {
-      // Normalisasi nama jenjang untuk handling case-insensitive
-      const normalizedJenjang = namaJenjang?.toUpperCase() || "";
-      return allowedJenjang.some((allowed) =>
-        normalizedJenjang.includes(allowed.toUpperCase()),
-      );
-    }
-
-    return false;
+  const canAccessJenjang = (namaJenjang?: string) => {
+    const allowed = getAllowedJenjang();
+    if (allowed === "ALL") return true;
+    if (!namaJenjang) return false;
+    const norm = namaJenjang.toUpperCase();
+    return (allowed as string[]).some((a) => norm.includes(a.toUpperCase()));
   };
 
   const allowedJenjangDisplay = getAllowedJenjang();
 
-  // --- Fetch Jenjang ---
+  // ── Fetch jenjang ─────────────────────────────────────────────────────────
   const fetchJenjang = async () => {
     try {
-      const response = await api.get("/jenjang");
-      const allJenjang = response.data.data || [];
-
-      // Jika Super Admin/Admin, tampilkan semua jenjang
-      if (isSuperAdminOrAdmin()) {
-        setJenjangList(allJenjang);
-      } else {
-        // Filter jenjang berdasarkan role user
-        const filteredJenjang = allJenjang.filter((j: any) =>
-          canAccessJenjang(j.nama_jenjang),
-        );
-        setJenjangList(filteredJenjang);
-      }
-    } catch (error) {
-      console.error("Gagal mengambil data jenjang:", error);
+      const res = await api.get("/jenjang");
+      const all: any[] = res.data.data || [];
+      setJenjangList(
+        isSuperAdminOrAdmin()
+          ? all
+          : all.filter((j) => canAccessJenjang(j.nama_jenjang)),
+      );
+    } catch {
+      /* skip */
     }
   };
 
-  // --- Fetch Data Graduation ---
-  const fetchData = async () => {
+  // ── Fetch data kelulusan ──────────────────────────────────────────────────
+  // GET /api/v1/graduation?page=&limit=&jenjang_id=&search=
+  // Response: { message, metadata: { totalItems, totalPages, currentPage, limit }, data: [] }
+  const fetchData = async (page = currentPage) => {
     setLoading(true);
     try {
-      const response = await api.get("/graduation", {
-        params: {
-          search: searchTerm,
-          jenjang_id: selectedJenjang === "semua" ? undefined : selectedJenjang,
-        },
-      });
+      const params: Record<string, any> = {
+        page,
+        limit: PAGE_LIMIT,
+        search: searchTerm || undefined,
+        jenjang_id: selectedJenjang !== "semua" ? selectedJenjang : undefined,
+      };
 
-      const allData = response.data.data || [];
+      const res = await api.get("/graduation", { params });
+      const all: KelulusanItem[] = res.data.data || [];
 
-      // Jika Super Admin/Admin, tampilkan semua data
-      if (isSuperAdminOrAdmin()) {
-        setData(allData);
-      } else {
-        // Filter data berdasarkan jenjang yang diizinkan
-        const filteredData = allData.filter((item: any) =>
-          canAccessJenjang(item.jenjang?.nama_jenjang),
-        );
-        setData(filteredData);
-      }
-    } catch (error) {
-      console.error("Gagal load data");
+      // Filter tambahan di sisi client jika bukan Super Admin/Admin
+      const filtered = isSuperAdminOrAdmin()
+        ? all
+        : all.filter((item) => canAccessJenjang(item.jenjang?.nama_jenjang));
+
+      setData(filtered);
+      setMeta(res.data.metadata ?? null);
+    } catch {
+      toast.error("Gagal memuat data kelulusan");
     } finally {
       setLoading(false);
     }
   };
 
-  // PERBAIKAN: Tunggu userLoginInfo ter-load sebelum fetch data
   useEffect(() => {
-    // Hanya fetch jika userLoginInfo sudah ada dan tidak loading
-    if (userLoginInfo && !contextLoading) {
-      fetchJenjang();
-    }
+    if (userLoginInfo && !contextLoading) fetchJenjang();
   }, [userLoginInfo, contextLoading]);
 
-  // PERBAIKAN: Tambahkan dependency userLoginInfo
   useEffect(() => {
-    // Hanya fetch jika userLoginInfo sudah ada dan tidak loading
-    if (userLoginInfo && !contextLoading) {
-      const delayDebounceFn = setTimeout(() => {
-        fetchData();
-      }, 500);
-      return () => clearTimeout(delayDebounceFn);
-    }
+    if (!userLoginInfo || contextLoading) return;
+    setCurrentPage(1);
+    const t = setTimeout(() => fetchData(1), 400);
+    return () => clearTimeout(t);
   }, [selectedJenjang, searchTerm, userLoginInfo, contextLoading]);
 
-  // --- Handlers ---
-  const handleOpenModal = (item: any = null) => {
+  useEffect(() => {
+    if (!userLoginInfo || contextLoading) return;
+    fetchData(currentPage);
+  }, [currentPage]);
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+  const handleOpenModal = (item: KelulusanItem | null = null) => {
     if (item) {
-      // Cek apakah user bisa edit data ini (kecuali Super Admin/Admin)
       if (
         !isSuperAdminOrAdmin() &&
         !canAccessJenjang(item.jenjang?.nama_jenjang)
       ) {
         toast.error(
-          "Anda tidak memiliki akses untuk mengedit data jenjang ini",
+          "Anda tidak memiliki akses untuk mengedit data jenjang ini.",
         );
         return;
       }
-
       setSelectedData(item);
       setFormData({
         nomor_siswa: item.nomor_siswa,
         nama_siswa: item.nama_siswa,
         jenjang_id: item.jenjang_id,
         tahun_ajaran: item.tahun_ajaran,
+        kelas: item.kelas ?? "XII_MIPA",
+        tanggal_lahir: toDateInput(item.tanggal_lahir ?? ""),
         status_lulus: item.status_lulus,
-        keterangan: item.keterangan || "",
+        keterangan: item.keterangan ?? "",
       });
     } else {
       setSelectedData(null);
       setFormData({
-        nomor_siswa: "",
-        nama_siswa: "",
-        jenjang_id: jenjangList.length > 0 ? jenjangList[0].jenjang_id : "",
-        tahun_ajaran: "2024/2025",
-        status_lulus: true,
-        keterangan: "",
+        ...INITIAL_FORM,
+        jenjang_id: jenjangList[0]?.jenjang_id ?? "",
       });
     }
     setIsModalOpen(true);
   };
 
+  // ── Submit form (create / update) ─────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
 
-    // Validasi: Cek apakah jenjang yang dipilih diizinkan (kecuali Super Admin/Admin)
-    if (!isSuperAdminOrAdmin()) {
-      const selectedJenjangData = jenjangList.find(
-        (j) => j.jenjang_id === formData.jenjang_id,
-      );
-
-      if (
-        selectedJenjangData &&
-        !canAccessJenjang(selectedJenjangData.nama_jenjang)
-      ) {
-        toast.error("Anda tidak memiliki akses untuk jenjang ini");
-        return;
-      }
-    }
+    /**
+     * Payload yang dikirim:
+     * - tanggal_lahir: YYYY-MM-DD (isISO8601 valid → diterima validator backend)
+     *   Service buatKelulusan / editKelulusan akan new Date(tanggal_lahir) → Prisma DateTime
+     *
+     * Tidak perlu konversi ke YYYYMMDD di sini karena validator backend
+     * menggunakan .isISO8601() bukan format YYYYMMDD khusus.
+     */
+    const payload = {
+      nomor_siswa: formData.nomor_siswa,
+      nama_siswa: formData.nama_siswa,
+      jenjang_id: formData.jenjang_id,
+      tahun_ajaran: formData.tahun_ajaran,
+      kelas: formData.kelas,
+      tanggal_lahir: toISODate(formData.tanggal_lahir), // "YYYY-MM-DD"
+      status_lulus: formData.status_lulus,
+      keterangan: formData.keterangan || null,
+    };
 
     try {
       if (selectedData) {
-        await api.put(`/graduation/${selectedData.kelulusan_id}`, formData);
-        toast.success("Data berhasil diupdate");
+        // PUT /api/v1/graduation/:kelulusan_id
+        await api.put(`/graduation/${selectedData.kelulusan_id}`, payload);
+        toast.success("Data kelulusan berhasil diupdate.");
       } else {
-        await api.post("/graduation", formData);
-        toast.success("Data berhasil ditambahkan");
+        // POST /api/v1/graduation
+        await api.post("/graduation", payload);
+        toast.success("Data kelulusan berhasil ditambahkan.");
       }
       setIsModalOpen(false);
-      fetchData();
-    } catch (error: any) {
-      const serverMsg = error.response?.data?.message || "Gagal menyimpan data";
-      toast.error(serverMsg);
+      fetchData(currentPage);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Gagal menyimpan data.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string, jenjangNama: string) => {
-    // Cek permission sebelum delete (kecuali Super Admin/Admin)
+  // ── Hapus ─────────────────────────────────────────────────────────────────
+  // DELETE /api/v1/graduation/:kelulusan_id
+  const handleDelete = async (id: string, jenjangNama?: string) => {
     if (!isSuperAdminOrAdmin() && !canAccessJenjang(jenjangNama)) {
-      toast.error("Anda tidak memiliki akses untuk menghapus data jenjang ini");
+      toast.error(
+        "Anda tidak memiliki akses untuk menghapus data jenjang ini.",
+      );
       return;
     }
-
-    if (!confirm("Hapus data ini?")) return;
+    if (!confirm("Hapus data kelulusan ini?")) return;
     try {
       await api.delete(`/graduation/${id}`);
-      toast.success("Data dihapus");
-      fetchData();
-    } catch (error) {
-      toast.error("Gagal menghapus");
+      toast.success("Data kelulusan berhasil dihapus.");
+      // Kembali ke page 1 jika halaman sekarang jadi kosong
+      const newTotal = (meta?.totalItems ?? 1) - 1;
+      const maxPage = Math.max(1, Math.ceil(newTotal / PAGE_LIMIT));
+      const targetPage = Math.min(currentPage, maxPage);
+      if (targetPage !== currentPage) setCurrentPage(targetPage);
+      else fetchData(currentPage);
+    } catch {
+      toast.error("Gagal menghapus data.");
     }
   };
 
-  // PERBAIKAN: Tampilkan loading state saat context masih loading
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (contextLoading || !userLoginInfo) {
     return (
       <DashboardLayout>
@@ -280,9 +325,11 @@ const GraduationAnnouncement = () => {
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <div className="space-y-6 p-2">
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
@@ -292,14 +339,12 @@ const GraduationAnnouncement = () => {
               Kelola status kelulusan siswa.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => handleOpenModal()}>
-              <Plus className="mr-2 h-4 w-4" /> Tambah Data
-            </Button>
-          </div>
+          <Button onClick={() => handleOpenModal()}>
+            <Plus className="mr-2 h-4 w-4" /> Tambah Data
+          </Button>
         </div>
 
-        {/* Info Role User */}
+        {/* Info Role */}
         <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
@@ -311,54 +356,37 @@ const GraduationAnnouncement = () => {
                 )}
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {userLoginInfo?.userInfo?.role || "Unknown"}
+                <p className="text-sm font-semibold">
+                  {userLoginInfo?.userInfo?.role ?? "Unknown"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {userLoginInfo?.userInfo?.username || "User"}
+                  {userLoginInfo?.userInfo?.username ?? "User"}
                 </p>
               </div>
             </div>
-
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
                 Akses Jenjang:
               </span>
-              <div className="flex flex-wrap gap-1.5">
-                {isSuperAdminOrAdmin() ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium">
-                    <CheckCircle className="w-3 h-3" />
-                    Semua Jenjang
+              {isSuperAdminOrAdmin() ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium">
+                  <CheckCircle className="w-3 h-3" /> Semua Jenjang
+                </span>
+              ) : Array.isArray(allowedJenjangDisplay) ? (
+                allowedJenjangDisplay.map((j) => (
+                  <span
+                    key={j}
+                    className="px-2.5 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium"
+                  >
+                    {j}
                   </span>
-                ) : Array.isArray(allowedJenjangDisplay) ? (
-                  allowedJenjangDisplay.map((jenjang) => (
-                    <span
-                      key={jenjang}
-                      className="px-2.5 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium"
-                    >
-                      {jenjang}
-                    </span>
-                  ))
-                ) : null}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs">
-              <div className="text-center">
-                <p className="text-muted-foreground">Total Jenjang</p>
-                <p className="font-bold text-lg text-primary">
-                  {isSuperAdminOrAdmin()
-                    ? jenjangList.length
-                    : Array.isArray(allowedJenjangDisplay)
-                      ? allowedJenjangDisplay.length
-                      : 0}
-                </p>
-              </div>
+                ))
+              ) : null}
             </div>
           </div>
         </div>
 
-        {/* Filter & Search */}
+        {/* Filter */}
         <div className="flex flex-col md:flex-row gap-4 bg-card p-4 rounded-lg border shadow-sm">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -369,7 +397,6 @@ const GraduationAnnouncement = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
           <Select value={selectedJenjang} onValueChange={setSelectedJenjang}>
             <SelectTrigger className="w-full md:w-[200px]">
               <SelectValue placeholder="Semua Jenjang" />
@@ -392,6 +419,7 @@ const GraduationAnnouncement = () => {
               <TableRow>
                 <TableHead>No. Siswa</TableHead>
                 <TableHead>Nama Siswa</TableHead>
+                <TableHead>Kelas</TableHead>
                 <TableHead>Jenjang</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
@@ -400,16 +428,15 @@ const GraduationAnnouncement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10">
+                  <TableCell colSpan={6} className="text-center py-10">
                     <Loader2 className="animate-spin mx-auto h-6 w-6" />
                   </TableCell>
                 </TableRow>
-              ) : data && data.length > 0 ? (
-                data.map((item: any) => {
+              ) : data.length > 0 ? (
+                data.map((item) => {
                   const hasAccess =
                     isSuperAdminOrAdmin() ||
                     canAccessJenjang(item.jenjang?.nama_jenjang);
-
                   return (
                     <TableRow key={item.kelulusan_id}>
                       <TableCell className="font-medium">
@@ -417,8 +444,13 @@ const GraduationAnnouncement = () => {
                       </TableCell>
                       <TableCell>{item.nama_siswa}</TableCell>
                       <TableCell>
+                        <Badge variant="outline">
+                          {KELAS_LABEL[item.kelas] ?? item.kelas ?? "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          {item.jenjang?.nama_jenjang || "-"}
+                          {item.jenjang?.nama_jenjang ?? "-"}
                           {!hasAccess && (
                             <Lock className="w-3 h-3 text-muted-foreground" />
                           )}
@@ -427,7 +459,9 @@ const GraduationAnnouncement = () => {
                       <TableCell>
                         <Badge
                           className={
-                            item.status_lulus ? "bg-green-500" : "bg-red-500"
+                            item.status_lulus
+                              ? "bg-green-500 hover:bg-green-500"
+                              : "bg-red-500 hover:bg-red-500"
                           }
                         >
                           {item.status_lulus ? "Lulus" : "Belum Lulus"}
@@ -441,7 +475,11 @@ const GraduationAnnouncement = () => {
                           disabled={!hasAccess}
                         >
                           <Edit
-                            className={`h-4 w-4 ${hasAccess ? "text-blue-600" : "text-muted-foreground"}`}
+                            className={`h-4 w-4 ${
+                              hasAccess
+                                ? "text-blue-600"
+                                : "text-muted-foreground"
+                            }`}
                           />
                         </Button>
                         <Button
@@ -456,7 +494,11 @@ const GraduationAnnouncement = () => {
                           disabled={!hasAccess}
                         >
                           <Trash2
-                            className={`h-4 w-4 ${hasAccess ? "text-destructive" : "text-muted-foreground"}`}
+                            className={`h-4 w-4 ${
+                              hasAccess
+                                ? "text-destructive"
+                                : "text-muted-foreground"
+                            }`}
                           />
                         </Button>
                       </TableCell>
@@ -466,26 +508,51 @@ const GraduationAnnouncement = () => {
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="text-center py-10 text-muted-foreground"
                   >
-                    <p>Data tidak ditemukan.</p>
-                    {!isSuperAdminOrAdmin() &&
-                      Array.isArray(allowedJenjangDisplay) && (
-                        <p className="text-xs mt-2">
-                          Anda hanya dapat melihat data untuk jenjang:{" "}
-                          {allowedJenjangDisplay.join(", ")}
-                        </p>
-                      )}
+                    Data tidak ditemukan.
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination — sesuai metadata dari ambilSemuaKelulusan */}
+        {meta && meta.totalPages > 1 && (
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              Menampilkan {(meta.currentPage - 1) * meta.limit + 1}–
+              {Math.min(meta.currentPage * meta.limit, meta.totalItems)} dari{" "}
+              {meta.totalItems} data
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="px-3">
+                {meta.currentPage} / {meta.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={currentPage >= meta.totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Modal Form */}
+      {/* ── Modal Form ─────────────────────────────────────────────────────── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -493,11 +560,14 @@ const GraduationAnnouncement = () => {
               {selectedData ? "Edit" : "Tambah"} Data Kelulusan
             </DialogTitle>
           </DialogHeader>
+
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
+            {/* Nomor Siswa */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">No. Siswa</Label>
               <Input
                 className="col-span-3"
+                placeholder="Nomor Induk / NISN"
                 value={formData.nomor_siswa}
                 onChange={(e) =>
                   setFormData({ ...formData, nomor_siswa: e.target.value })
@@ -505,6 +575,8 @@ const GraduationAnnouncement = () => {
                 required
               />
             </div>
+
+            {/* Nama Siswa */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Nama Siswa</Label>
               <Input
@@ -516,12 +588,49 @@ const GraduationAnnouncement = () => {
                 required
               />
             </div>
+
+            {/* Kelas */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Kelas</Label>
+              <Select
+                value={formData.kelas}
+                onValueChange={(v) => setFormData({ ...formData, kelas: v })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Pilih Kelas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="XII_MIPA">XII IPA</SelectItem>
+                  <SelectItem value="XII_IPS">XII IPS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Tanggal Lahir */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Tanggal Lahir</Label>
+              <div className="col-span-3 space-y-1">
+                <Input
+                  type="date"
+                  value={formData.tanggal_lahir}
+                  onChange={(e) =>
+                    setFormData({ ...formData, tanggal_lahir: e.target.value })
+                  }
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Digunakan untuk verifikasi saat siswa cek kelulusan.
+                </p>
+              </div>
+            </div>
+
+            {/* Jenjang */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Jenjang</Label>
               <Select
                 value={formData.jenjang_id}
-                onValueChange={(val) =>
-                  setFormData({ ...formData, jenjang_id: val })
+                onValueChange={(v) =>
+                  setFormData({ ...formData, jenjang_id: v })
                 }
               >
                 <SelectTrigger className="col-span-3">
@@ -542,13 +651,28 @@ const GraduationAnnouncement = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Tahun Ajaran */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Tahun Ajaran</Label>
+              <Input
+                className="col-span-3"
+                placeholder="2024/2025"
+                value={formData.tahun_ajaran}
+                onChange={(e) =>
+                  setFormData({ ...formData, tahun_ajaran: e.target.value })
+                }
+                required
+              />
+            </div>
+
             {/* Status Lulus */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Status</Label>
               <Select
                 value={formData.status_lulus ? "true" : "false"}
-                onValueChange={(val) =>
-                  setFormData({ ...formData, status_lulus: val === "true" })
+                onValueChange={(v) =>
+                  setFormData({ ...formData, status_lulus: v === "true" })
                 }
               >
                 <SelectTrigger className="col-span-3">
@@ -560,9 +684,41 @@ const GraduationAnnouncement = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Keterangan */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Keterangan</Label>
+              <Input
+                className="col-span-3"
+                placeholder="Opsional"
+                value={formData.keterangan}
+                onChange={(e) =>
+                  setFormData({ ...formData, keterangan: e.target.value })
+                }
+              />
+            </div>
+
             <DialogFooter>
-              <Button type="submit" disabled={jenjangList.length === 0}>
-                Simpan
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsModalOpen(false)}
+                disabled={submitting}
+              >
+                Batal
+              </Button>
+              <Button
+                type="submit"
+                disabled={jenjangList.length === 0 || submitting}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  "Simpan"
+                )}
               </Button>
             </DialogFooter>
           </form>

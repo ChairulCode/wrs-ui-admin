@@ -3,9 +3,6 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useQuery } from "@tanstack/react-query";
 import { getRequest } from "@/utils/api-call";
 import {
-  Search,
-  Filter,
-  Download,
   FileText,
   Users,
   Clock,
@@ -22,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
 import StatCard from "@/components/StatCard";
 import TableRow from "@/components/Tablerow";
 import Pagination from "@/components/Pagination";
@@ -33,7 +29,7 @@ interface PendaftaranData {
   id: string;
   noPendaftaran: string;
   namaSiswa: string;
-  emailOrangtua: String;
+  emailOrangtua: string;
   kelas: string;
   telpSiswa: string;
   statusPendaftaran: "pending" | "approved" | "rejected";
@@ -50,52 +46,37 @@ const Pendaftaran = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
-  // Fungsi untuk mendapatkan kelas yang diizinkan berdasarkan role
+  const role = userLoginInfo?.userInfo?.role;
+
   const getAllowedClasses = () => {
-    const role = userLoginInfo?.userInfo?.role;
-
     if (role === "Super Administrator" || role === "Admin") {
-      return [
-        "PG",
-        "TK A",
-        "TK B",
-        "SD Kelas I",
-        "SMP Kelas VII",
-        "SMA Kelas X",
-      ];
+      return ["PG", "TK", "SD", "SMP", "SMA"];
     }
-
-    if (role === "Kepala Sekolah SMA") return ["SMA Kelas X"];
-    if (role === "Kepala Sekolah SMP") return ["SMP Kelas VII"];
-    if (role === "Kepala Sekolah SD") return ["SD Kelas I"];
-    if (role === "Kepala Sekolah PG-TK") return ["PG", "TK A", "TK B"];
-
+    if (role === "Kepala Sekolah SMA") return ["SMA"];
+    if (role === "Kepala Sekolah SMP") return ["SMP"];
+    if (role === "Kepala Sekolah SD") return ["SD"];
+    if (role === "Kepala Sekolah PG-TK") return ["PG", "TK"];
     return [];
   };
 
-  // Fungsi untuk mendapatkan level berdasarkan role
   const getUserLevel = () => {
-    const role = userLoginInfo?.userInfo?.role;
-
     if (role === "Super Administrator" || role === "Admin") return "all";
     if (role === "Kepala Sekolah SMA") return "SMA";
     if (role === "Kepala Sekolah SMP") return "SMP";
     if (role === "Kepala Sekolah SD") return "SD";
     if (role === "Kepala Sekolah PG-TK") return "PGTK";
-
     return null;
   };
 
-  // Fungsi untuk cek apakah user bisa akses kelas tertentu
   const canAccessClass = (kelas: string) => {
     const allowedClasses = getAllowedClasses();
-    return allowedClasses.includes(kelas);
+    return allowedClasses.some((allowed) => kelas.startsWith(allowed));
   };
 
   const allowedClasses = getAllowedClasses();
   const userLevel = getUserLevel();
 
-  // Fetch data pendaftaran dengan filter berdasarkan role
+  // ── Query tabel (dengan filter aktif)
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
       "pendaftaran",
@@ -112,41 +93,33 @@ const Pendaftaran = () => {
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (kelasFilter !== "all") params.append("kelas", kelasFilter);
       if (search) params.append("search", search);
-
       const response = await getRequest(`/pendaftaran?${params.toString()}`);
-      console.log("Pendaftaran Response:", response);
       return response;
     },
   });
 
-  // Filter data berdasarkan kelas yang diizinkan
+  // ✅ Query statistik — backend sudah filter per role via JWT
+  // Tidak perlu kirim role dari frontend karena backend baca dari req.user
+  const { data: statsData } = useQuery({
+    queryKey: ["pendaftaran-statistik", userLevel],
+    queryFn: async () => {
+      const response = await getRequest(`/pendaftaran/statistik`);
+      return response;
+    },
+  });
+
   const filteredData = useMemo(() => {
     if (!data?.data) return [];
     return data.data.filter((item: PendaftaranData) =>
       canAccessClass(item.kelas),
     );
-  }, [data?.data, allowedClasses]);
+  }, [data?.data, userLoginInfo]);
 
-  // Hitung statistik berdasarkan data yang sudah difilter
-  const filteredStats = useMemo(() => {
-    const total = filteredData.length;
-    const pending = filteredData.filter(
-      (item: PendaftaranData) => item.statusPendaftaran === "pending",
-    ).length;
-    const approved = filteredData.filter(
-      (item: PendaftaranData) => item.statusPendaftaran === "approved",
-    ).length;
-    const rejected = filteredData.filter(
-      (item: PendaftaranData) => item.statusPendaftaran === "rejected",
-    ).length;
-
-    return {
-      total,
-      pending,
-      approved,
-      rejected,
-    };
-  }, [filteredData]);
+  // ✅ Stats sudah filtered per role dari backend
+  const stats = useMemo(() => {
+    if (statsData?.data) return statsData.data;
+    return { total: 0, pending: 0, approved: 0, rejected: 0 };
+  }, [statsData]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,31 +127,13 @@ const Pendaftaran = () => {
     refetch();
   };
 
-  const exportToCSV = () => {
-    if (filteredData.length === 0) {
-      toast.error("Tidak ada data untuk diexport");
-      return;
-    }
-
-    // Lakukan export dengan filteredData
-    toast.success(`${filteredData.length} data berhasil diexport!`);
-  };
-
-  console.log("Data:", data);
-  console.log("Filtered Data:", filteredData);
-  console.log("Filtered Stats:", filteredStats);
-  console.log("User Role:", userLoginInfo?.userInfo?.role);
-  console.log("Allowed Classes:", allowedClasses);
-
-  // Daftar kelas yang akan ditampilkan di filter dropdown
   const availableClassFilters = [
     { value: "PG", label: "PG" },
-    { value: "TK A", label: "TK A" },
-    { value: "TK B", label: "TK B" },
-    { value: "SD Kelas I", label: "SD Kelas I" },
-    { value: "SMP Kelas VII", label: "SMP Kelas VII" },
-    { value: "SMA Kelas X", label: "SMA Kelas X" },
-  ].filter((item) => allowedClasses.includes(item.value));
+    { value: "TK", label: "TK" },
+    { value: "SD", label: "SD (Semua)" },
+    { value: "SMP", label: "SMP (Semua)" },
+    { value: "SMA", label: "SMA (Semua)" },
+  ].filter((item) => getAllowedClasses().some((a) => item.value.startsWith(a)));
 
   return (
     <DashboardLayout>
@@ -191,16 +146,11 @@ const Pendaftaran = () => {
               Kelola pendaftaran siswa baru tahun ajaran 2026/2027
             </p>
           </div>
-          <Button onClick={exportToCSV} variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Export Data
-          </Button>
         </div>
 
-        {/* Info Role User */}
+        {/* Info Role */}
         <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            {/* Left Side - User Info */}
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-lg bg-primary/10">
                 <Users className="w-5 h-5 text-primary" />
@@ -215,11 +165,10 @@ const Pendaftaran = () => {
               </div>
             </div>
 
-            {/* Middle - Access Info */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Akses:</span>
               <div className="flex flex-wrap gap-1.5">
-                {allowedClasses.length === 6 ? (
+                {allowedClasses.length === 5 ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium">
                     <CheckCircle className="w-3 h-3" />
                     Semua Tingkatan
@@ -237,7 +186,6 @@ const Pendaftaran = () => {
               </div>
             </div>
 
-            {/* Right Side - Stats */}
             <div className="flex items-center gap-4 text-xs">
               <div className="text-center">
                 <p className="text-muted-foreground">Total Kelas</p>
@@ -250,7 +198,7 @@ const Pendaftaran = () => {
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                 <span className="font-medium text-foreground">Aktif</span>
               </div>
-              {allowedClasses.length < 6 && (
+              {allowedClasses.length < 5 && (
                 <>
                   <div className="h-8 w-px bg-border"></div>
                   <Lock className="w-4 h-4 text-muted-foreground" />
@@ -260,29 +208,29 @@ const Pendaftaran = () => {
           </div>
         </div>
 
-        {/* Statistics Cards - MENGGUNAKAN filteredStats */}
+        {/* ✅ Statistics Cards — sudah filtered per role dari backend */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard
             title="Total Pendaftar"
-            value={filteredStats.total}
+            value={stats.total ?? 0}
             icon={Users}
             color="blue"
           />
           <StatCard
             title="Menunggu Verifikasi"
-            value={filteredStats.pending}
+            value={stats.pending ?? 0}
             icon={Clock}
             color="yellow"
           />
           <StatCard
             title="Diterima"
-            value={filteredStats.approved}
+            value={stats.approved ?? 0}
             icon={CheckCircle}
             color="green"
           />
           <StatCard
             title="Ditolak"
-            value={filteredStats.rejected}
+            value={stats.rejected ?? 0}
             icon={XCircle}
             color="red"
           />
@@ -299,8 +247,13 @@ const Pendaftaran = () => {
                 className="w-full"
               />
             </div>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -311,8 +264,13 @@ const Pendaftaran = () => {
                 <SelectItem value="rejected">Ditolak</SelectItem>
               </SelectContent>
             </Select>
-
-            <Select value={kelasFilter} onValueChange={setKelasFilter}>
+            <Select
+              value={kelasFilter}
+              onValueChange={(value) => {
+                setKelasFilter(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Kelas" />
               </SelectTrigger>
@@ -325,11 +283,6 @@ const Pendaftaran = () => {
                 ))}
               </SelectContent>
             </Select>
-
-            <Button type="submit">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
           </form>
         </div>
 
@@ -350,8 +303,7 @@ const Pendaftaran = () => {
                     <th className="p-4 text-left font-semibold">Nama Siswa</th>
                     <th className="p-4 text-left font-semibold">
                       Email Orang Tua
-                    </th>{" "}
-                    {/* <--- Tambah Header */}
+                    </th>
                     <th className="p-4 text-left font-semibold">Kelas</th>
                     <th className="p-4 text-left font-semibold">Telepon</th>
                     <th className="p-4 text-left font-semibold">
@@ -380,7 +332,7 @@ const Pendaftaran = () => {
                 <div className="text-center py-12 text-muted-foreground">
                   <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>Tidak ada data pendaftaran yang dapat Anda akses</p>
-                  {allowedClasses.length < 6 && (
+                  {allowedClasses.length < 5 && (
                     <p className="text-xs mt-2">
                       Anda hanya dapat melihat data untuk:{" "}
                       {allowedClasses.join(", ")}
@@ -390,7 +342,6 @@ const Pendaftaran = () => {
               )}
             </div>
 
-            {/* Pagination */}
             {data?.pagination && filteredData.length > 0 && (
               <Pagination
                 currentPage={page}
@@ -401,7 +352,6 @@ const Pendaftaran = () => {
           </>
         )}
 
-        {/* Detail Modal */}
         {showDetail && selectedId && (
           <DetailModal
             id={selectedId}

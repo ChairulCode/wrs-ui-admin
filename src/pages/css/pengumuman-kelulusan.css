@@ -1,0 +1,282 @@
+/* ─────────────────────────────────────────────────────────────
+   APPEND ke file pengumuman-kelulusan.css yang sudah ada
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Wrapper SMA ─────────────────────────────────────────────── */
+.pk-wrapper--sma {
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+}
+
+.pk-subtitle {
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+  margin: -10px 0 24px;
+}
+
+/* ── Banner group ────────────────────────────────────────────── */
+.pk-banner-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.pk-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pk-banner--locked {
+  background-color: #fff7ed;
+  border-left: 4px solid #f97316;
+  color: #7c2d12;
+}
+
+.pk-banner--open {
+  background-color: #f0fdf4;
+  border-left: 4px solid #22c55e;
+  color: #14532d;
+}
+
+.pk-banner-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pk-banner-text strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pk-banner-pesan {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* ── Panduan ─────────────────────────────────────────────────── */
+.pk-panduan {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+}
+
+.pk-panduan-title {
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.pk-panduan-list {
+  padding-left: 18px;
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.pk-panduan-contoh {
+  color: #64748b;
+  font-size: 12px;
+}
+
+/* ── Form ────────────────────────────────────────────────────── */
+.pk-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pk-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pk-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+}
+
+.pk-input,
+.pk-select {
+  padding: 11px 12px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #fff;
+  color: #111827;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.pk-input:focus,
+.pk-select:focus {
+  outline: none;
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+}
+
+.pk-hint {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.pk-error {
+  background-color: #fff5f5;
+  border-left: 4px solid #ef4444;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Tombol Submit ───────────────────────────────────────────── */
+.pk-btn-submit {
+  padding: 13px;
+  background-color: #d4af37;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  transition:
+    background-color 0.2s,
+    opacity 0.2s;
+}
+
+.pk-btn-submit:hover:not(:disabled) {
+  background-color: #b8972f;
+}
+
+.pk-btn-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background-color: #94a3b8;
+}
+
+.pk-akses-info {
+  text-align: center;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: -8px;
+}
+
+/* ── Hasil Kelulusan ─────────────────────────────────────────── */
+.pk-hasil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.pk-hasil-card {
+  width: 100%;
+  border-radius: 12px;
+  padding: 28px 24px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.pk-hasil--lulus {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 2px solid #22c55e;
+}
+
+.pk-hasil--tidak-lulus {
+  background: linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%);
+  border: 2px solid #ef4444;
+}
+
+.pk-hasil-icon {
+  font-size: 52px;
+  margin-bottom: 10px;
+  line-height: 1;
+}
+
+.pk-hasil-status {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin: 0 0 20px;
+}
+
+.pk-hasil--lulus .pk-hasil-status {
+  color: #15803d;
+}
+.pk-hasil--tidak-lulus .pk-hasil-status {
+  color: #dc2626;
+}
+
+.pk-hasil-info {
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.pk-hasil-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 14px;
+  gap: 16px;
+}
+
+.pk-hasil-row:last-child {
+  border-bottom: none;
+}
+
+.pk-hasil-label {
+  color: #64748b;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.pk-hasil-value {
+  color: #0f172a;
+  font-weight: 600;
+  text-align: right;
+}
+
+.pk-hasil-footer {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.pk-btn-reset {
+  background: none;
+  border: none;
+  color: #d4af37;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+}
+
+.pk-btn-reset:hover {
+  text-decoration: underline;
+}

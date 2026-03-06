@@ -14,6 +14,7 @@ import {
   UserCog,
   UserPen,
   UserPlus,
+  UserCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,11 +45,38 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
   const { isUserLoggedIn, logout } = useAppContext();
+
   const menuItems = [
     {
       title: "Dashboard",
       url: "/dashboard",
       icon: LayoutDashboard,
+      roles: [
+        "Super Administrator",
+        "Admin",
+        "Kepala Sekolah PG-TK",
+        "Kepala Sekolah SD",
+        "Kepala Sekolah SMP",
+        "Kepala Sekolah SMA",
+      ],
+    },
+    {
+      title: "Siswa",
+      url: "/dashboard/students",
+      icon: UserCircle,
+      roles: [
+        "Super Administrator",
+        "Admin",
+        "Kepala Sekolah PG-TK",
+        "Kepala Sekolah SD",
+        "Kepala Sekolah SMP",
+        "Kepala Sekolah SMA",
+      ],
+    },
+    {
+      title: "Kelola Mata Pelajaran",
+      url: "/dashboard/mata-pelajaran",
+      icon: BookOpen,
       roles: [
         "Super Administrator",
         "Admin",
@@ -127,19 +155,6 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       title: "Pengumuman kelulusan",
       url: "/dashboard/kenaikan-kelas",
       icon: TrendingUp,
-      roles: [
-        "Super Administrator",
-        "Admin",
-        "Kepala Sekolah PG-TK",
-        "Kepala Sekolah SD",
-        "Kepala Sekolah SMP",
-        "Kepala Sekolah SMA",
-      ],
-    },
-    {
-      title: "Nilai Mapel",
-      url: "/dashboard/subject-grades",
-      icon: BookOpen,
       roles: [
         "Super Administrator",
         "Admin",

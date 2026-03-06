@@ -20,6 +20,8 @@ import RoleManagementPage from "./pages/Roles";
 import UserManagementPage from "./pages/User";
 import KegiatanDetailPage from "./pages/Activities/AcitivitiesDetail";
 import { ToastProvider } from "./components/ui/toast";
+import Students from "./pages/Students/page";
+import DashboardMataPelajaran from "./pages/kelola-mapel";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +38,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/sosial" element={<About />} />
           <Route path="/dashboard/achievements" element={<Achievements />} />
+          <Route path="/dashboard/students" element={<Students />} />
           <Route
             path="/dashboard/achievements/:prestasi_id"
             element={<PrestasiDetail />}
@@ -55,6 +58,10 @@ const App = () => (
           <Route path="/dashboard/users" element={<UserManagementPage />} />
           <Route path="/dashboard/roles" element={<RoleManagementPage />} />
           <Route path="/dashboard/pendaftaran" element={<Pendaftaran />} />
+          <Route
+            path="/dashboard/mata-pelajaran"
+            element={<DashboardMataPelajaran />}
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

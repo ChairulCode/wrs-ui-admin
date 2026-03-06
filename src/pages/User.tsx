@@ -32,6 +32,7 @@ import { Plus, Pencil, Trash2, Search, RefreshCcw, Eye } from "lucide-react";
 import {
   deleteRequest,
   getRequest,
+  patchRequest,
   postRequest,
   putRequest,
 } from "@/utils/api-call";
@@ -114,16 +115,19 @@ const UsersManagementPage = () => {
     e.preventDefault();
     setisLoading(true);
 
+    const { role, ...cleanFormData } = formData; // buang object role
+
     try {
       if (editingId) {
-        await putRequest(`/users/${editingId}`, {
-          ...formData,
+        await patchRequest(`/users/${editingId}`, {
+          // ← patch, bukan put
+          ...cleanFormData,
           editor_user_id: userLoginInfo.userInfo.user_id,
         });
         toast.success(`User berhasil diupdate!`);
       } else {
         await postRequest("/users", {
-          ...formData,
+          ...cleanFormData,
           penulis_user_id: userLoginInfo.userInfo.user_id,
         });
         toast.success("User berhasil ditambahkan!");
