@@ -72,10 +72,8 @@ import {
 } from "@/components/ui/pagination";
 import { toast } from "react-toastify";
 
-// ✅ FIX 1: Typo diperbaiki — use-permisson → use-permission
 import { usePermission } from "@/utils/use-permisson";
 
-// ✅ NEW: Import fungsi mapel dinamis — API + fallback statis + cache
 import {
   fetchMapelByKelas,
   getMapelByKelas,
@@ -100,6 +98,7 @@ interface Siswa {
   telepon: string;
   email: string;
   status: StatusSiswa;
+  jenjang_id: string;
 }
 
 interface OrangTua {
@@ -124,6 +123,14 @@ interface Nilai {
   nilaiUTS: number;
   nilaiUAS: number;
   nilaiAkhir: number;
+  _gradeId?: string;
+}
+
+// ✅ Type untuk data jenjang dari API
+interface JenjangItem {
+  jenjang_id: string;
+  nama_jenjang: string;
+  kode_jenjang: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -156,6 +163,63 @@ const getNilaiGrade = (nilai: number) => {
 const generateId = (prefix: string) =>
   `${prefix}${Date.now().toString().slice(-6)}`;
 
+// ✅ Helper: derive jenjang_id dari nama kelas + daftar jenjang dari API
+// Mapping: nama kelas → kode_jenjang yang tersimpan di DB
+const getJenjangIdFromKelas = (
+  kelas: string,
+  jenjangList: JenjangItem[],
+): string => {
+  if (!kelas || !jenjangList.length) return "";
+
+  const k = kelas.toUpperCase();
+
+  // Deteksi tingkatan dari string kelas
+  let targetKode = "";
+  if (k.includes("TK") || k.includes("PG")) {
+    // Contoh: "TK A", "TK B", "PG A"
+    targetKode = "PGTK";
+  } else if (
+    k.includes("SMA") ||
+    /\b(10|11|12)\b/.test(k) ||
+    k.includes("MIPA") ||
+    k.includes("IPS")
+  ) {
+    // Contoh: "SMA - 10 MIPA 1", "10 MIPA 1", "12 IPS 2"
+    targetKode = "SMA";
+  } else if (k.includes("SMP") || /\b[7-9][ABC]\b/.test(k)) {
+    // Contoh: "7A", "8B", "9C", "SMP 7A"
+    targetKode = "SMP";
+  } else if (/\b[1-6][AB]\b/.test(k) || k.includes("SD")) {
+    // Contoh: "1A", "6B", "SD 3A"
+    targetKode = "SD";
+  }
+
+  if (!targetKode) {
+    console.warn(`Tidak bisa mendeteksi tingkatan dari kelas: "${kelas}"`);
+    return "";
+  }
+
+  // Cari jenjang berdasarkan kode_jenjang (case-insensitive)
+  // Juga coba cocokkan via nama_jenjang sebagai fallback
+  const found = jenjangList.find(
+    (j) =>
+      j.kode_jenjang.toUpperCase() === targetKode.toUpperCase() ||
+      j.nama_jenjang.toUpperCase().includes(targetKode.toUpperCase()),
+  );
+
+  if (!found) {
+    console.warn(
+      `Jenjang tidak ditemukan untuk kelas: "${kelas}" (targetKode: "${targetKode}")`,
+    );
+    console.warn(
+      "Jenjang tersedia:",
+      jenjangList.map((j) => `${j.kode_jenjang} → ${j.nama_jenjang}`),
+    );
+  }
+
+  return found?.jenjang_id ?? "";
+};
+
 // ─── Blank Forms ──────────────────────────────────────────────────────────────
 
 const blankSiswa = (): Omit<Siswa, "id" | "no"> => ({
@@ -168,6 +232,7 @@ const blankSiswa = (): Omit<Siswa, "id" | "no"> => ({
   telepon: "",
   email: "",
   status: "AKTIF",
+  jenjang_id: "",
 });
 
 const blankOrangTua = (siswaId: string): Omit<OrangTua, "id"> => ({
@@ -529,7 +594,6 @@ interface ModalNilaiProps {
   open: boolean;
   mode: "add" | "edit";
   data: Omit<Nilai, "id">;
-  // ✅ NEW: kelas siswa untuk memuat mapel yang sesuai tingkatan
   kelasSiswa: string;
   onChange: (field: keyof Omit<Nilai, "id">, value: string | number) => void;
   onSave: () => void;
@@ -545,7 +609,6 @@ function ModalNilai({
   onSave,
   onClose,
 }: ModalNilaiProps) {
-  // ✅ State mapel dinamis — diambil dari API, fallback ke statis jika gagal
   const [mapelList, setMapelList] = useState<string[]>([]);
   const [isLoadingMapel, setIsLoadingMapel] = useState(false);
   const tingkatanLabel = getTingkatanLabel(kelasSiswa);
@@ -553,14 +616,12 @@ function ModalNilai({
   useEffect(() => {
     if (!open || !kelasSiswa) return;
 
-    // Cek cache sync dulu — jika ada langsung pakai tanpa loading
     const cached = getMapelByKelas(kelasSiswa);
     if (cached.length > 0) {
       setMapelList(cached);
       return;
     }
 
-    // Belum ada di cache → fetch dari API
     setIsLoadingMapel(true);
     fetchMapelByKelas(kelasSiswa)
       .then((result) => setMapelList(result.map((m) => m.nama)))
@@ -579,7 +640,6 @@ function ModalNilai({
             <BookOpen className="w-5 h-5 text-violet-600" />
             {mode === "add" ? "Tambah Data Nilai" : "Edit Data Nilai"}
           </DialogTitle>
-          {/* ✅ Badge info tingkatan + jumlah mapel */}
           {kelasSiswa && (
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200 font-medium">
@@ -596,7 +656,6 @@ function ModalNilai({
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-4">
-            {/* ✅ Dropdown mapel dinamis per tingkatan kelas */}
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
                 Mata Pelajaran
@@ -734,6 +793,9 @@ export default function DashboardSiswa() {
   const [orangTuaList, setOrangTuaList] = useState<OrangTua[]>([]);
   const [nilaiList, setNilaiList] = useState<Nilai[]>([]);
 
+  // ✅ NEW: State daftar jenjang dari API — dipakai sebagai fallback resolve jenjang_id
+  const [jenjangList, setJenjangList] = useState<JenjangItem[]>([]);
+
   const [page, setPage] = useState(1);
   const limit = 10;
 
@@ -748,7 +810,6 @@ export default function DashboardSiswa() {
   const [filterJK, setFilterJK] = useState("all");
 
   // ── State: Filter Nilai ───────────────────────────────────────────────────
-  // ✅ NEW: 3 dimensi filter nilai
   const [filterTahunAjaran, setFilterTahunAjaran] = useState("all");
   const [filterSemester, setFilterSemester] = useState("all");
   const [filterMapel, setFilterMapel] = useState("all");
@@ -829,7 +890,6 @@ export default function DashboardSiswa() {
     [orangTuaList, selectedSiswa],
   );
 
-  // Semua nilai milik siswa terpilih (sebelum filter)
   const nilaiSiswa = useMemo(
     () =>
       selectedSiswa
@@ -838,13 +898,11 @@ export default function DashboardSiswa() {
     [nilaiList, selectedSiswa],
   );
 
-  // ✅ NEW: Daftar tahun ajaran unik — terbaru di atas
   const tahunAjaranList = useMemo(
     () => [...new Set(nilaiSiswa.map((n) => n.tahunAjaran))].sort().reverse(),
     [nilaiSiswa],
   );
 
-  // ✅ UPDATED: filteredNilai — 3 dimensi: tahun + semester + mapel
   const filteredNilai = useMemo(() => {
     let result = [...nilaiSiswa];
     if (filterTahunAjaran !== "all")
@@ -856,8 +914,6 @@ export default function DashboardSiswa() {
     return result;
   }, [nilaiSiswa, filterTahunAjaran, filterSemester, filterMapel]);
 
-  // ✅ FIX: kelasList diambil dari siswa yang accessible oleh role saat ini
-  // Kepala Sekolah PG-TK hanya lihat TK A, TK B — bukan SMA/SMP/SD
   const kelasList = useMemo(() => {
     const base = isSuperAdmin
       ? siswaList
@@ -865,7 +921,6 @@ export default function DashboardSiswa() {
     return [...new Set(base.map((s) => s.kelas))].sort();
   }, [siswaList, isSuperAdmin, canAccessKelas]);
 
-  // ✅ Mapel filter list — mengikuti filter tahun + semester aktif (bukan semua mapel)
   const mapelFilterList = useMemo(() => {
     let base = [...nilaiSiswa];
     if (filterTahunAjaran !== "all")
@@ -914,7 +969,6 @@ export default function DashboardSiswa() {
       }
       setIsLoadingDetail(true);
       setSelectedSiswa(siswa);
-      // ✅ Reset semua filter nilai saat ganti siswa
       resetNilaiFilter();
       setTimeout(() => setIsLoadingDetail(false), 300);
     },
@@ -955,49 +1009,74 @@ export default function DashboardSiswa() {
     setModalSiswaMode("edit");
     setModalSiswaOpen(true);
   };
-  const saveSiswa = async () => {
-    const errors: string[] = [];
-    if (!formSiswa.nama) errors.push("Nama");
-    if (!formSiswa.nisn) {
-      errors.push("NISN");
-    } else if (!/^\d{10}$/.test(formSiswa.nisn)) {
-      toast.error("NISN harus tepat 10 digit angka");
-      return;
-    }
-    if (!formSiswa.kelas) errors.push("Kelas");
-    if (!formSiswa.tanggalLahir) errors.push("Tanggal Lahir");
-    if (!formSiswa.jenisKelamin) errors.push("Jenis Kelamin");
-    if (!formSiswa.alamat) errors.push("Alamat");
-    if (!formSiswa.status) errors.push("Status");
-    if (!formSiswa.telepon) errors.push("Telepon");
-    if (!formSiswa.email) errors.push("Email");
-    if (errors.length > 0) {
-      toast.error(`Field berikut wajib diisi: ${errors.join(", ")}`);
-      return;
-    }
-    try {
-      if (modalSiswaMode === "add") {
-        const newId = generateId("S");
-        const newNo = Math.max(...siswaList.map((s) => s.no), 0) + 1;
-        const payload = { id: newId, no: newNo, ...formSiswa };
-        await postRequest("/siswa", payload);
-        setSiswaList((prev) => [...prev, payload]);
-      } else if (editingSiswaId) {
-        await putRequest(`/siswa/${editingSiswaId}`, formSiswa);
-        setSiswaList((prev) =>
-          prev.map((s) =>
-            s.id === editingSiswaId ? { ...s, ...formSiswa } : s,
-          ),
+ const saveSiswa = async () => {
+  const errors: string[] = [];
+  if (!formSiswa.nama) errors.push("Nama");
+  if (!formSiswa.nisn) {
+    errors.push("NISN");
+  } else if (!/^\d{10}$/.test(formSiswa.nisn)) {
+    toast.error("NISN harus tepat 10 digit angka");
+    return;
+  }
+  if (!formSiswa.kelas) errors.push("Kelas");
+  if (!formSiswa.tanggalLahir) errors.push("Tanggal Lahir");
+  if (!formSiswa.jenisKelamin) errors.push("Jenis Kelamin");
+  if (!formSiswa.alamat) errors.push("Alamat");
+  if (!formSiswa.status) errors.push("Status");
+  if (!formSiswa.telepon) errors.push("Telepon");
+  if (!formSiswa.email) errors.push("Email");
+  if (errors.length > 0) {
+    toast.error(`Field berikut wajib diisi: ${errors.join(", ")}`);
+    return;
+  }
+
+  // ✅ Resolve jenjang_id — wajib dikirim ke backend sebagai UUID v4
+  const jenjangId =
+    formSiswa.jenjang_id ||
+    getJenjangIdFromKelas(formSiswa.kelas, jenjangList);
+
+  if (!jenjangId) {
+    toast.error(
+      "Jenjang tidak ditemukan untuk kelas ini. Pastikan data jenjang sudah tersedia.",
+    );
+    return;
+  }
+
+  try {
+    if (modalSiswaMode === "add") {
+      const newId = generateId("S");
+      const newNo = Math.max(...siswaList.map((s) => s.no), 0) + 1;
+      const payload = {
+        id: newId,
+        no: newNo,
+        ...formSiswa,
+        jenjang_id: jenjangId, // ✅ selalu kirim jenjang_id valid
+      };
+      await postRequest("/siswa", payload);
+      setSiswaList((prev) => [...prev, payload]);
+    } else if (editingSiswaId) {
+      const payload = {
+        ...formSiswa,
+        jenjang_id: jenjangId, // ✅ selalu kirim jenjang_id valid
+      };
+      await putRequest(`/siswa/${editingSiswaId}`, payload);
+      setSiswaList((prev) =>
+        prev.map((s) =>
+          s.id === editingSiswaId ? { ...s, ...payload } : s,
+        ),
+      );
+      if (selectedSiswa?.id === editingSiswaId) {
+        setSelectedSiswa((prev) =>
+          prev ? { ...prev, ...payload } : prev,
         );
-        if (selectedSiswa?.id === editingSiswaId) {
-          setSelectedSiswa((prev) => (prev ? { ...prev, ...formSiswa } : prev));
-        }
       }
-      setModalSiswaOpen(false);
-    } catch {
-      // error sudah ditangani oleh handleApiError di api-call.ts
     }
-  };
+    setModalSiswaOpen(false);
+    toast.success("Data siswa berhasil disimpan");
+  } catch {
+    // error sudah ditangani oleh handleApiError di api-call.ts
+  }
+};
   const deleteSiswa = (s: Siswa) => {
     setSiswaList((prev) => prev.filter((x) => x.id !== s.id));
     setOrangTuaList((prev) => prev.filter((ot) => ot.siswaId !== s.id));
@@ -1005,7 +1084,7 @@ export default function DashboardSiswa() {
     if (selectedSiswa?.id === s.id) setSelectedSiswa(null);
     deleteRequest(`/siswa/${s.id}`);
     deleteRequest(`/orang-tua/siswa/${s.id}`);
-    deleteRequest(`/nilai/siswa/${s.id}`);
+    deleteRequest(`/subject-grades/siswa/${s.id}`);
     setDeleteSiswaTarget(null);
   };
 
@@ -1046,7 +1125,6 @@ export default function DashboardSiswa() {
   // ── CRUD: Nilai ───────────────────────────────────────────────────────────
   const openAddNilai = () => {
     if (!selectedSiswa) return;
-    // ✅ Reset mataPelajaran saat tambah baru agar tidak carry-over
     setFormNilai(blankNilai(selectedSiswa.id));
     setModalNilaiMode("add");
     setEditingNilaiId(null);
@@ -1059,34 +1137,208 @@ export default function DashboardSiswa() {
     setModalNilaiMode("edit");
     setModalNilaiOpen(true);
   };
+
   const saveNilai = async () => {
-    if (!formNilai.mataPelajaran) return;
-    if (modalNilaiMode === "add") {
-      setNilaiList((prev) => [...prev, { id: generateId("N"), ...formNilai }]);
-      await postRequest(`/nilai/siswa/${formNilai.siswaId}`, formNilai);
-    } else if (editingNilaiId) {
-      setNilaiList((prev) =>
-        prev.map((n) => (n.id === editingNilaiId ? { ...n, ...formNilai } : n)),
-      );
-      await putRequest(`/nilai/${editingNilaiId}`, formNilai);
+    if (!formNilai.mataPelajaran) {
+      toast.error("Mata pelajaran wajib dipilih");
+      return;
     }
-    setModalNilaiOpen(false);
+
+    const jenjangId =
+      selectedSiswa?.jenjang_id ||
+      getJenjangIdFromKelas(selectedSiswa?.kelas ?? "", jenjangList);
+
+    if (!jenjangId) {
+      toast.error("Jenjang siswa tidak ditemukan.");
+      return;
+    }
+
+    const semesterFormatted =
+      formNilai.semester === "GANJIL" ? "Ganjil" : "Genap";
+
+    try {
+      if (modalNilaiMode === "add") {
+        // Cek record tahun_ajaran + semester sudah ada atau belum
+        const existing = await getRequest(
+          `/subject-grades?student_user_id=${selectedSiswa?.id}&tahun_ajaran=${formNilai.tahunAjaran}&semester=${semesterFormatted}`,
+        );
+        const existingRecord =
+          (existing?.data ?? []).find(
+            (r: any) =>
+              r.student_user_id === selectedSiswa?.id &&
+              r.tahun_ajaran === formNilai.tahunAjaran &&
+              r.semester?.toLowerCase() === semesterFormatted.toLowerCase(),
+          ) ?? null;
+
+        if (existingRecord) {
+          // ── Sudah ada → merge nilai_json lalu PUT
+          const mergedNilaiJson = {
+            ...(existingRecord.nilai_json ?? {}),
+            [formNilai.mataPelajaran]: formNilai.nilaiAkhir,
+          };
+          await putRequest(`/subject-grades/${existingRecord.grade_id}`, {
+            nilai_json: mergedNilaiJson,
+            catatan: existingRecord.catatan ?? "",
+            status: existingRecord.status ?? "Published",
+          });
+        } else {
+          // ── Belum ada → POST baru
+          await postRequest(`/subject-grades`, {
+            student_user_id: selectedSiswa?.id ?? "",
+            nama_siswa: selectedSiswa?.nama ?? "",
+            jenjang_id: jenjangId,
+            tahun_ajaran: formNilai.tahunAjaran,
+            semester: semesterFormatted,
+            status: "Published",
+            catatan: "",
+            nilai_json: {
+              [formNilai.mataPelajaran]: formNilai.nilaiAkhir,
+            },
+          });
+        }
+      } else if (editingNilaiId) {
+        // ── Edit: cari grade_id dari _gradeId yang disimpan saat flatten
+        const targetItem = nilaiList.find((n) => n.id === editingNilaiId);
+        const gradeId = (targetItem as any)?._gradeId;
+
+        if (gradeId) {
+          // Ambil record terbaru dari API untuk dapat nilai_json lengkap
+          const existingRes = await getRequest(
+            `/subject-grades?student_user_id=${selectedSiswa?.id}&tahun_ajaran=${formNilai.tahunAjaran}&semester=${semesterFormatted}`,
+          );
+          const gradeRecord =
+            (existingRes?.data ?? []).find(
+              (r: any) => r.grade_id === gradeId,
+            ) ?? null;
+
+          const mergedNilaiJson = {
+            ...(gradeRecord?.nilai_json ?? {}),
+            [formNilai.mataPelajaran]: formNilai.nilaiAkhir,
+          };
+
+          await putRequest(`/subject-grades/${gradeId}`, {
+            nilai_json: mergedNilaiJson,
+            catatan: gradeRecord?.catatan ?? "",
+            status: gradeRecord?.status ?? "Published",
+          });
+        }
+      }
+
+      // ✅ Refetch dari API setelah save — pastikan UI sync dengan DB
+      await getNilaiSiswa(selectedSiswa?.id ?? "");
+      setModalNilaiOpen(false);
+      toast.success("Data nilai berhasil disimpan");
+    } catch {
+      // error ditangani handleApiError
+    }
   };
+
   const deleteNilai = async (n: Nilai) => {
-    setNilaiList((prev) => prev.filter((x) => x.id !== n.id));
-    await deleteRequest(`/nilai/${n.id}`);
+    const gradeId = (n as any)._gradeId;
+    if (!gradeId) return;
+
+    try {
+      // Ambil record lengkap dulu
+      const res = await getRequest(
+        `/subject-grades?student_user_id=${selectedSiswa?.id}`,
+      );
+      const record = (res?.data ?? []).find((r: any) => r.grade_id === gradeId);
+
+      if (record) {
+        const updatedNilaiJson = { ...record.nilai_json };
+        delete updatedNilaiJson[n.mataPelajaran]; // hapus hanya key mapel ini
+
+        if (Object.keys(updatedNilaiJson).length === 0) {
+          // Jika nilai_json kosong → hapus seluruh record
+          await deleteRequest(`/subject-grades/${gradeId}`);
+        } else {
+          // Masih ada mapel lain → update nilai_json tanpa mapel ini
+          await putRequest(`/subject-grades/${gradeId}`, {
+            nilai_json: updatedNilaiJson,
+            catatan: record.catatan ?? "",
+            status: record.status ?? "Published",
+          });
+        }
+      }
+
+      // Refetch setelah delete
+      await getNilaiSiswa(selectedSiswa?.id ?? "");
+    } catch {
+      // error ditangani handleApiError
+    }
+
     setDeleteNilaiTarget(null);
   };
 
   // ── API Fetch ─────────────────────────────────────────────────────────────
   const fetchSiswa = async () => {
     const res = await getRequest(`/siswa`);
-    setSiswaList(res.data);
+    const normalized = (res.data as any[]).map((s: any) => ({
+      ...s,
+      jenjang_id:
+        s.jenjang_id ||
+        s.jenjangId ||
+        s.jenjang?.id ||
+        s.jenjang?.jenjang_id ||
+        "",
+    }));
+    setSiswaList(normalized);
   };
 
+  // ✅ NEW: Fetch daftar jenjang sekali saat mount
+  // Digunakan sebagai fallback resolve jenjang_id ketika model Siswa (legacy)
+  // tidak menyertakan jenjang_id di response API
+  const fetchJenjang = async () => {
+    try {
+      const res = await getRequest("/jenjang");
+      const data: JenjangItem[] = (res.data ?? []).map((j: any) => ({
+        jenjang_id: j.jenjang_id ?? j.id ?? "",
+        nama_jenjang: j.nama_jenjang ?? j.nama ?? "",
+        kode_jenjang: j.kode_jenjang ?? j.kode ?? "",
+      }));
+      setJenjangList(data);
+      console.log(
+        "✅ Jenjang loaded:",
+        data.map((j) => `${j.kode_jenjang} (${j.nama_jenjang})`),
+      );
+    } catch {
+      console.warn(
+        "⚠️ Gagal fetch jenjang — jenjang_id tidak bisa di-resolve otomatis",
+      );
+    }
+  };
+
+  // ── API Fetch: Nilai ──────────────────────────────────────────────────────────
   const getNilaiSiswa = async (id: string) => {
-    const res = await getRequest(`/nilai/siswa/${id}`);
-    setNilaiList(res.data);
+    const res = await getRequest(`/subject-grades?student_user_id=${id}`);
+    const raw: any[] = res.data ?? [];
+
+    // ✅ Flatten: 1 record API (per semester) → N rows UI (per mata pelajaran)
+    // Backend simpan nilai_json: { "Matematika": 85, "IPS": 90 }
+    // UI butuh: [{ mataPelajaran: "Matematika", nilaiAkhir: 85 }, ...]
+    const flattened: Nilai[] = raw
+      .filter((record) => record.student_user_id === id) // hanya milik siswa ini
+      .flatMap((record) => {
+        const nilaiJson: Record<string, number> = record.nilai_json ?? {};
+        const semesterNormalized =
+          record.semester?.toUpperCase() === "GENAP" ? "GENAP" : "GANJIL";
+
+        return Object.entries(nilaiJson).map(([mapel, nilai]) => ({
+          id: `${record.grade_id}_${mapel}`, // ID unik: grade_id + nama mapel
+          siswaId: id,
+          mataPelajaran: mapel,
+          semester: semesterNormalized as Semester,
+          tahunAjaran: record.tahun_ajaran ?? "",
+          nilaiHarian: Number(nilai),
+          nilaiUTS: Number(nilai),
+          nilaiUAS: Number(nilai),
+          nilaiAkhir: Number(nilai),
+          // ✅ Simpan grade_id asli untuk keperluan PUT/DELETE
+          _gradeId: record.grade_id,
+        }));
+      });
+
+    setNilaiList(flattened as any);
   };
 
   const getOrangTuaSiswa = async (id: string) => {
@@ -1094,8 +1346,10 @@ export default function DashboardSiswa() {
     setOrangTuaList(res.data);
   };
 
+  // ✅ Mount: fetch siswa + jenjang secara paralel
   useEffect(() => {
     fetchSiswa();
+    fetchJenjang();
   }, []);
 
   useEffect(() => {
@@ -1541,9 +1795,7 @@ export default function DashboardSiswa() {
                       )}
                     </div>
 
-                    {/* ✅ Filter bar nilai — 3 dimensi */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* ✅ NEW: Filter Tahun Ajaran */}
                       {tahunAjaranList.length > 0 && (
                         <Select
                           value={filterTahunAjaran}
@@ -1567,7 +1819,6 @@ export default function DashboardSiswa() {
                         </Select>
                       )}
 
-                      {/* Filter Semester */}
                       <Select
                         value={filterSemester}
                         onValueChange={(v) => {
@@ -1585,7 +1836,6 @@ export default function DashboardSiswa() {
                         </SelectContent>
                       </Select>
 
-                      {/* Filter Mapel — hanya tampil jika ada data dengan filter saat ini */}
                       {mapelFilterList.length > 0 && (
                         <Select
                           value={filterMapel}
@@ -1605,7 +1855,6 @@ export default function DashboardSiswa() {
                         </Select>
                       )}
 
-                      {/* ✅ Tombol reset — hanya muncul jika ada filter aktif */}
                       {hasActiveNilaiFilter && (
                         <Button
                           variant="ghost"
@@ -1632,7 +1881,6 @@ export default function DashboardSiswa() {
                     </div>
                   </div>
 
-                  {/* ✅ Info bar — tampil saat ada filter aktif */}
                   {hasActiveNilaiFilter && (
                     <div className="px-5 py-2 bg-violet-50 border-b border-violet-100 flex items-center gap-2 text-xs text-violet-600 flex-wrap">
                       <span className="font-semibold">Filter aktif:</span>
@@ -1958,7 +2206,6 @@ export default function DashboardSiswa() {
           onClose={() => setModalOTOpen(false)}
         />
 
-        {/* ✅ NEW: kelasSiswa prop diteruskan agar ModalNilai load mapel yang tepat */}
         <ModalNilai
           open={modalNilaiOpen}
           mode={modalNilaiMode}
