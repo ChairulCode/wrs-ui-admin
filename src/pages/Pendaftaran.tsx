@@ -143,7 +143,7 @@ const Pendaftaran = () => {
           <div>
             <h1 className="text-3xl font-bold">Manajemen Pendaftaran Siswa</h1>
             <p className="text-muted-foreground">
-              Kelola pendaftaran siswa baru tahun ajaran 2026/2027
+              Kelola pendaftaran siswa baru
             </p>
           </div>
         </div>

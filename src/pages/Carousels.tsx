@@ -35,7 +35,6 @@ import {
   Search,
   RefreshCcw,
   Eye,
-  Cloud,
   CloudUploadIcon,
 } from "lucide-react";
 import {
@@ -55,7 +54,7 @@ import Swal from "sweetalert2";
 import { useAppContext } from "@/utils/app-context";
 import { useNavigate } from "react-router-dom";
 import DashboardPagination from "@/components/sections/dashboardPagination";
-import { ApiResponse, Jenjang, Jenjang_relasi, Carousel } from "@/types/data";
+import { ApiResponse, Jenjang, Carousel } from "@/types/data";
 
 interface InitialForm {
   judul: string;
@@ -68,7 +67,7 @@ interface InitialForm {
   is_published: boolean;
   is_featured: boolean;
   updated_at: string;
-  jenjang: Jenjang[];
+  jenjang_id: string | null;
 }
 
 const initialFormData: InitialForm = {
@@ -82,18 +81,19 @@ const initialFormData: InitialForm = {
   is_published: true,
   is_featured: true,
   updated_at: "",
-  jenjang: [],
+  jenjang_id: null,
 };
 
-/**
- * PR
- * 1. BAGIAN POPUP(FIELD JENJANG DAN TAMPILKAN MASIH BELUM TERBACA DATA API NYA, KARENA TIDAK ADA ASYNC JADI DIPAKAI DATA AWAL)
- * 2. POPUP URUTAN MASIH BELUM DI FILTER BERDASARKAN URUTAN TERKECIL YANG TERSEDIA
- * 3. DATA MASIH BELUM DI FILTER BERDASARKAN ROLE BASED, MISALNYA KS SD HANYA BISA AKSES DATA YANG ADA SD NYA
- * 4. TAMBAH DAN EDIT MASIH ERROR
- */
-
 const BASE_URL = import.meta.env.VITE_BASE_URL;
+
+// ✅ Helper: sanitize nama file — ganti spasi & karakter special jadi underscore
+const sanitizeFileName = (name: string): string => {
+  return name
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]/g, "_");
+};
+
 const CarouselsPage = () => {
   const { userLoginInfo } = useAppContext();
   const [carouselsBackup, setCarouselsBackup] = useState<
@@ -112,10 +112,8 @@ const CarouselsPage = () => {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Filter/Pagination State
   const [searchTerm, setSearchTerm] = useState("");
   const [filterYear, setFilterYear] = useState("all");
-
   const [page, setPage] = useState(1);
   const totalData = carouselsBackup?.length || 0;
   const limit = 10;
@@ -129,29 +127,8 @@ const CarouselsPage = () => {
       );
       if (!responseData.data) throw new Error(responseData.message);
       const fetchJenjang = await getRequest(`/jenjang`);
-      // let filterBasedRole = "";
-      // switch (userLoginInfo.userInfo.role) {
-      // 	case "Kepala Sekolah PG-TK":
-      // 		filterBasedRole = "PG-TK";
-      // 		break;
-      // 	case "Kepala Sekolah SD":
-      // 		filterBasedRole = "SD";
-      // 		break;
-      // 	case "Kepala Sekolah SMP":
-      // 		filterBasedRole = "SMP";
-      // 		break;
-      // 	case "Kepala Sekolah SMA":
-      // 		filterBasedRole = "SMA";
-      // 		break;
-      // 	default:
-      // 		break;
-      // }
-      // const filterByRole =
-      // 	filterBasedRole &&
-      // 	responseData.data.filter((carousels) => carousels.jenjang_relasi.filter((relasi) => relasi.jenjang.kode_jenjang === filterBasedRole));
-      // const sortData = responseData.data.sort((a: Carousel, b: Carousel) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      const sortData = responseData.data.sort((a: Carousel, b: Carousel) =>
-        a.judul.localeCompare(b.judul),
+      const sortData = responseData.data.sort(
+        (a: Carousel, b: Carousel) => a.urutan - b.urutan,
       );
       setCarouselsBackup(sortData);
       setCarouselsFiltered(sortData?.slice(limit * (page - 1), limit * page));
@@ -180,31 +157,27 @@ const CarouselsPage = () => {
 
     try {
       if (editingId) {
+        const { updated_at, penulis_user_id, ...restForm } = formData;
         const dataToSubmit = {
-          ...formData,
+          ...restForm,
           updated_at: new Date().toISOString(),
           editor_user_id: userLoginInfo.userInfo.user_id,
+          penulis_user_id: formData.penulis_user_id,
         };
-        const uploadAchievementData = await putRequest(
-          `/carousels/${editingId}`,
-          dataToSubmit,
-        );
+        await putRequest(`/carousels/${editingId}`, dataToSubmit);
 
         if (gambar) {
           const foto = new FormData();
           foto.append("image", gambar);
           foto.append("alt", formData.path_gambar);
-
-          const uploadFoto = await postRequest(
-            "/galleries/add/carousels",
-            foto,
-          );
+          await postRequest("/galleries/add/carousels", foto);
           toast.success(`Foto berhasil diupdate!`);
         }
-        toast.success(`Carousel dengan id ${editingId} berhasil diupdate!`);
+        toast.success(`Carousel berhasil diupdate!`);
       } else {
+        const { updated_at, ...restForm } = formData;
         const dataToSubmit = {
-          ...formData,
+          ...restForm,
           tanggal_publikasi: formData.tanggal_publikasi
             ? formData.tanggal_publikasi
             : new Date().toISOString(),
@@ -212,28 +185,23 @@ const CarouselsPage = () => {
           penulis_user_id: userLoginInfo.userInfo.user_id,
           editor_user_id: userLoginInfo.userInfo.user_id,
         };
-        const uploadAchievementData = await postRequest(
-          "/carousels",
-          dataToSubmit,
-        );
+        await postRequest("/carousels", dataToSubmit);
+
         if (gambar) {
           const foto = new FormData();
           foto.append("image", gambar);
-          const uploadFoto = await postRequest("/galleries/add/carousels", {
-            file: foto,
-            alt: formData.path_gambar,
-          });
+          await postRequest("/galleries/add/carousels", foto);
           toast.success(`Foto berhasil diunggah!`);
         }
         toast.success("Carousel berhasil ditambahkan!");
         resetForm();
         setOpen(false);
       }
-      setisLoading(false);
-    } catch (error) {
-      toast.error(error.message || "Terjadi kesalahan");
-      console.log(error);
-
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || error?.message || "Terjadi kesalahan",
+      );
+      console.error("handleSubmit error:", error?.response?.data || error);
       setIsError(true);
     } finally {
       fetchCarousels();
@@ -244,17 +212,12 @@ const CarouselsPage = () => {
   const executeDelete = async (id: string) => {
     setisLoading(true);
     try {
-      const res = await deleteRequest(`/carousels/${id}`);
-
+      await deleteRequest(`/carousels/${id}`);
       const isLastItemOnPage = carouselsFiltered.length === 1;
-      const shouldGoToPreviousPage = isLastItemOnPage && page > 1;
-
-      if (shouldGoToPreviousPage) {
-        setPage((prev) => prev - 1);
-      }
+      if (isLastItemOnPage && page > 1) setPage((prev) => prev - 1);
       toast.success("Carousel berhasil dihapus!");
-    } catch (error) {
-      toast.error(error.message || "Terjadi kesalahan");
+    } catch (error: any) {
+      toast.error(error?.message || "Terjadi kesalahan");
       setIsError(true);
     } finally {
       fetchCarousels();
@@ -273,72 +236,54 @@ const CarouselsPage = () => {
       confirmButtonText: "Ya, Hapus!",
       cancelButtonText: "Batal",
     }).then((result) => {
-      if (result.isConfirmed) {
-        executeDelete(id);
-      }
+      if (result.isConfirmed) executeDelete(id);
     });
   };
 
-  const openEditDialog = (carousels: Carousel) => {
-    const formattedDate = carousels.tanggal_publikasi
-      ? new Date(carousels.tanggal_publikasi!).toISOString().split("T")[0]
+  const openEditDialog = (carousel: Carousel) => {
+    const formattedDate = carousel.tanggal_publikasi
+      ? new Date(carousel.tanggal_publikasi!).toISOString().split("T")[0]
       : "";
 
     setFormData({
-      judul: carousels.judul,
-      urutan: carousels.urutan,
-      konten: carousels.konten,
-      path_gambar: carousels.path_gambar || "",
+      judul: carousel.judul,
+      urutan: carousel.urutan,
+      konten: carousel.konten,
+      path_gambar: carousel.path_gambar || "",
       tanggal_publikasi: formattedDate,
-      is_published: carousels.is_published,
-      is_featured: carousels.is_featured,
-      updated_at: carousels.updated_at,
-      penulis_user_id: carousels.penulis_user_id,
-      editor_user_id: carousels.editor_user_id,
-      jenjang,
+      is_published: carousel.is_published,
+      is_featured: carousel.is_featured,
+      updated_at: carousel.updated_at,
+      penulis_user_id: carousel.penulis_user_id,
+      editor_user_id: carousel.editor_user_id,
+      jenjang_id: carousel.jenjang_id || null,
     });
-    setEditingId(carousels.carousel_id || null);
+    setEditingId(carousel.carousel_id || null);
     setGambar(null);
     setOpen(true);
   };
 
   const carouselsYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    const years = Array.from({ length: 10 }, (_, i) => currentYear - i).map(
-      (y) => y.toString(),
+    return Array.from({ length: 10 }, (_, i) => currentYear - i).map((y) =>
+      y.toString(),
     );
-    return years;
   }, []);
 
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setPage(page);
-    }
-  };
-
-  const getGradeColors = (grade: string) => {
-    switch (grade) {
-      case "PG-TK":
-        return "bg-green-300";
-      case "SD":
-        return "bg-yellow-300";
-      case "SMP":
-        return "bg-red-300";
-      default:
-        return "bg-blue-300";
-    }
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) setPage(newPage);
   };
 
   const handleUploadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const fileName = file.name;
-
+      // ✅ FIX: sanitize nama file — ganti spasi & karakter special jadi underscore
+      const safeName = sanitizeFileName(file.name);
       const reader = new FileReader();
       reader.onload = () => {
         setFormData((prev) => ({
           ...prev,
-          path_gambar: "carousels/" + fileName,
+          path_gambar: "carousels/" + safeName,
         }));
         setGambar(file);
       };
@@ -350,33 +295,30 @@ const CarouselsPage = () => {
     fetchCarousels();
   }, []);
 
-  // PAGINATION
   useEffect(() => {
     const newTotalData = carouselsBackup?.length || 0;
     const newTotalPages = Math.ceil(newTotalData / limit);
-
     if (page > newTotalPages && page > 1) {
       setPage(newTotalPages);
       return;
     }
-
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const slicedData = carouselsBackup.slice(startIndex, endIndex);
-
-    setCarouselsFiltered(slicedData);
-  }, [page, carouselsBackup, limit, setPage]);
-
-  // FILTERING
-  useEffect(() => {
     setCarouselsFiltered(
-      carouselsBackup
-        .filter((carousels) =>
-          carousels.judul.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-        .slice(0, limit * page),
+      carouselsBackup.slice((page - 1) * limit, page * limit),
     );
-  }, [searchTerm, filterYear]);
+  }, [page, carouselsBackup]);
+
+  useEffect(() => {
+    let filtered = carouselsBackup.filter((c: Carousel) =>
+      c.judul.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+    if (filterYear !== "all") {
+      filtered = filtered.filter(
+        (c: Carousel) =>
+          new Date(c.tanggal_publikasi).getFullYear().toString() === filterYear,
+      );
+    }
+    setCarouselsFiltered(filtered.slice(0, limit * page));
+  }, [searchTerm, filterYear, carouselsBackup, page]);
 
   return (
     <DashboardLayout>
@@ -390,7 +332,6 @@ const CarouselsPage = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            {/* REFRESH */}
             <Button
               onClick={() => {
                 fetchCarousels();
@@ -402,7 +343,7 @@ const CarouselsPage = () => {
             >
               <RefreshCcw className="h-4 w-4" />
             </Button>
-            {/* TAMBAH/EDIT */}
+
             <Dialog
               open={open}
               onOpenChange={(value) => {
@@ -425,7 +366,9 @@ const CarouselsPage = () => {
                     Isi informasi carousel dengan lengkap
                   </DialogDescription>
                 </DialogHeader>
+
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* JUDUL */}
                   <div className="space-y-2">
                     <Label htmlFor="title">Judul Carousel</Label>
                     <Input
@@ -437,7 +380,8 @@ const CarouselsPage = () => {
                       required
                     />
                   </div>
-                  {/* DESKRIPSI */}
+
+                  {/* URUTAN */}
                   <div className="space-y-2">
                     <Label htmlFor="order">Urutan</Label>
                     <Input
@@ -451,9 +395,8 @@ const CarouselsPage = () => {
                         })
                       }
                     />
-                    {/* <Textarea
-                     */}
                   </div>
+
                   {/* TANGGAL */}
                   <div className="space-y-2">
                     <Label htmlFor="carousels_date">Tanggal</Label>
@@ -469,32 +412,40 @@ const CarouselsPage = () => {
                       }
                     />
                   </div>
-                  {/* GAMBAR */}
+
+                  {/* GAMBAR PREVIEW */}
                   <div className="space-y-2">
                     <Label htmlFor="image">Gambar Carousel</Label>
-                    <div className="flex items-center justify-center w-full border-2 rounded-sm overflow-hidden max-h-[300px]">
+                    <div
+                      className="flex items-center justify-center w-full border-2 rounded-sm overflow-hidden max-h-[300px]"
+                      style={{ minHeight: "120px", background: "#f5f5f5" }}
+                    >
                       {gambar ? (
-                        /* 1. Prioritas Utama: Jika user baru saja pilih file (Add/Edit mode), tampilkan preview local */
                         <img
                           src={URL.createObjectURL(gambar)}
                           alt="Preview"
-                          className="w-full h-auto object-cover"
+                          className="w-full h-auto object-contain"
                         />
                       ) : formData.path_gambar ? (
-                        /* 2. Jika tidak ada file baru, tapi ada path dari API (Edit mode) */
                         <img
-                          src={`${BASE_URL}/${formData.path_gambar}`}
+                          src={`${BASE_URL}/${encodeURIComponent(formData.path_gambar).replace(/%2F/g, "/")}`}
                           alt="Gambar Carousel"
-                          className="w-full h-auto object-cover"
+                          className="w-full h-auto object-contain"
                         />
                       ) : (
-                        /* 3. Jika keduanya kosong (Add mode awal atau data memang kosong) */
                         <p className="py-10 text-neutral-500">
                           Tidak ada gambar
                         </p>
                       )}
                     </div>
+                    {/* Tampilkan nama file yang akan disimpan */}
+                    {formData.path_gambar && (
+                      <p className="text-xs text-muted-foreground">
+                        Path: {formData.path_gambar}
+                      </p>
+                    )}
                   </div>
+
                   <div className="flex items-center justify-center w-full">
                     <Label
                       htmlFor="dropzone-file"
@@ -520,9 +471,10 @@ const CarouselsPage = () => {
                       />
                     </Label>
                   </div>
+
                   {/* KONTEN */}
                   <div className="space-y-2">
-                    <Label htmlFor="content">Konten Lengkap</Label>
+                    <Label htmlFor="content">Konten</Label>
                     <Textarea
                       id="content"
                       value={formData.konten}
@@ -532,17 +484,49 @@ const CarouselsPage = () => {
                       rows={8}
                     />
                   </div>
+
+                  {/* JENJANG */}
+                  <div className="space-y-2">
+                    <Label htmlFor="jenjang_select">Jenjang</Label>
+                    <Select
+                      value={formData.jenjang_id || "none"}
+                      onValueChange={(val) =>
+                        setFormData({
+                          ...formData,
+                          jenjang_id: val === "none" ? null : val,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="jenjang_select">
+                        <SelectValue placeholder="Pilih Jenjang (opsional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Semua Jenjang</SelectItem>
+                        {jenjang.map((item) => (
+                          <SelectItem
+                            key={item.jenjang_id}
+                            value={item.jenjang_id}
+                          >
+                            {item.nama_jenjang}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* TAMPILKAN */}
                   <div className="grid gap-4">
-                    <Label htmlFor="">Tampilkan</Label>
+                    <Label>Tampilkan</Label>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base">
+                      <div
+                        className={`flex items-center ps-4 rounded-sm border border-default bg-neutral-primary-soft rounded-base ${formData.is_published && "border-blue-500"}`}
+                      >
                         <Input
-                          id={`is_published_true`}
+                          id="is_published_true"
                           type="checkbox"
                           checked={formData.is_published}
                           name="is_published"
-                          className="group-checked:border-red-600 w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none"
+                          className="w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none"
                           onChange={(e) =>
                             setFormData((prev) => ({
                               ...prev,
@@ -553,15 +537,17 @@ const CarouselsPage = () => {
                           }
                         />
                         <Label
-                          htmlFor={`is_published_true`}
+                          htmlFor="is_published_true"
                           className="w-full py-4 select-none ms-2 text-sm font-medium text-heading"
                         >
                           Ya
                         </Label>
                       </div>
-                      <div className="flex items-center ps-4 rounded-sm checked:bg-black border border-default bg-neutral-primary-soft rounded-base">
+                      <div
+                        className={`flex items-center ps-4 rounded-sm border border-default bg-neutral-primary-soft rounded-base ${!formData.is_published && "border-blue-500"}`}
+                      >
                         <Input
-                          id={`is_published_false`}
+                          id="is_published_false"
                           type="checkbox"
                           checked={!formData.is_published}
                           name="is_published"
@@ -576,7 +562,7 @@ const CarouselsPage = () => {
                           }
                         />
                         <Label
-                          htmlFor={`is_published_false`}
+                          htmlFor="is_published_false"
                           className="w-full py-4 select-none ms-2 text-sm font-medium text-heading"
                         >
                           Tidak
@@ -584,7 +570,7 @@ const CarouselsPage = () => {
                       </div>
                     </div>
                   </div>
-                  {/* SET PUBLISHED */}
+
                   <Button type="submit" disabled={isLoading}>
                     {isLoading ? "Menyimpan..." : "Simpan"}
                   </Button>
@@ -601,23 +587,15 @@ const CarouselsPage = () => {
             <Input
               placeholder="Cari judul carousel..."
               value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-              }}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 max-w-sm"
             />
           </div>
-
           <div className="space-x-2 flex items-center">
             <Label htmlFor="filter-year" className="text-sm font-medium">
               Tahun:
             </Label>
-            <Select
-              value={filterYear}
-              onValueChange={(value) => {
-                setFilterYear(value);
-              }}
-            >
+            <Select value={filterYear} onValueChange={setFilterYear}>
               <SelectTrigger id="filter-year" className="w-[150px]">
                 <SelectValue placeholder="Semua Tahun" />
               </SelectTrigger>
@@ -633,7 +611,7 @@ const CarouselsPage = () => {
           </div>
         </div>
 
-        {/* DATA GRID */}
+        {/* TABLE */}
         <Card className="shadow-md">
           <CardHeader>
             <CardTitle>Daftar Carousel</CardTitle>
@@ -659,7 +637,7 @@ const CarouselsPage = () => {
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={8}
                       className="text-center text-muted-foreground py-10"
                     >
                       Memuat data...
@@ -667,8 +645,8 @@ const CarouselsPage = () => {
                   </TableRow>
                 ) : (
                   carouselsFiltered &&
-                  carouselsFiltered.map((carousels, index) => (
-                    <TableRow key={carousels.prestasi_id}>
+                  carouselsFiltered.map((carousel, index) => (
+                    <TableRow key={carousel.carousel_id}>
                       <TableCell className="font-medium">
                         {(page - 1) * limit + index + 1}
                       </TableCell>
@@ -678,37 +656,47 @@ const CarouselsPage = () => {
                             height: "100px",
                             width: "100px",
                             overflow: "hidden",
+                            background: "#f0f0f0",
+                            borderRadius: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                           }}
                         >
                           <img
                             loading="lazy"
                             height={100}
                             width={100}
-                            src={`${BASE_URL}/${carousels.path_gambar}`}
+                            src={`${BASE_URL}/${encodeURIComponent(carousel.path_gambar).replace(/%2F/g, "/")}`}
                             alt=""
+                            style={{
+                              width: "100px",
+                              height: "100px",
+                              objectFit: "contain",
+                            }}
                           />
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {carousels.judul.length > 30
-                          ? `${carousels.judul.substring(0, 30)}...`
-                          : carousels.judul}
+                        {carousel.judul?.length > 30
+                          ? `${carousel.judul.substring(0, 30)}...`
+                          : carousel.judul}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {carousels.urutan}
+                        {carousel.urutan}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {carousels.konten && carousels.konten.length > 30
-                          ? `${carousels.konten.substring(0, 30)}...`
-                          : carousels.konten}
+                        {carousel.konten?.length > 30
+                          ? `${carousel.konten.substring(0, 30)}...`
+                          : carousel.konten}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {carousels.is_published ? "Ya" : "Tidak"}
+                        {carousel.is_published ? "Ya" : "Tidak"}
                       </TableCell>
                       <TableCell>
-                        {carousels.tanggal_publikasi
+                        {carousel.tanggal_publikasi
                           ? new Date(
-                              carousels.tanggal_publikasi!,
+                              carousel.tanggal_publikasi,
                             ).toLocaleDateString("id-ID")
                           : "-"}
                       </TableCell>
@@ -718,7 +706,7 @@ const CarouselsPage = () => {
                           variant="outline"
                           onClick={() =>
                             navigate(
-                              `/dashboard/carousels/${carousels.prestasi_id}`,
+                              `/dashboard/carousels/${carousel.carousel_id}`,
                             )
                           }
                         >
@@ -727,7 +715,7 @@ const CarouselsPage = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => openEditDialog(carousels)}
+                          onClick={() => openEditDialog(carousel)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -735,7 +723,7 @@ const CarouselsPage = () => {
                           size="sm"
                           variant="destructive"
                           onClick={() =>
-                            popupDelete(carousels.prestasi_id || "")
+                            popupDelete(carousel.carousel_id || "")
                           }
                         >
                           <Trash2 className="h-4 w-4" />
@@ -744,27 +732,25 @@ const CarouselsPage = () => {
                     </TableRow>
                   ))
                 )}
-                {!isLoading &&
-                  carouselsFiltered &&
-                  carouselsFiltered.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={9}
-                        className="text-center text-muted-foreground py-10"
-                      >
-                        {searchTerm !== "" || filterYear !== "all"
-                          ? "Tidak ada carousel yang cocok dengan kriteria filter."
-                          : "Belum ada data carousel."}
-                      </TableCell>
-                    </TableRow>
-                  )}
+                {!isLoading && carouselsFiltered?.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="text-center text-muted-foreground py-10"
+                    >
+                      {searchTerm !== "" || filterYear !== "all"
+                        ? "Tidak ada carousel yang cocok dengan kriteria filter."
+                        : "Belum ada data carousel."}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
 
-        {/* PAGINATION */}
         <DashboardPagination
+          key="carousels-pagination"
           page={page}
           handlePageChange={handlePageChange}
           totalPages={totalPages}
