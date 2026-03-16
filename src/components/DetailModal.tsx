@@ -41,32 +41,13 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
     queryKey: ["pendaftaran-detail", id],
     queryFn: async () => {
       const response = await getRequest(`/pendaftaran/${id}`);
-
-      // 🔍 DEBUGGING - CEK STRUKTUR RESPONSE
-      console.log("=== FULL RESPONSE ===");
-      console.log("response:", response);
-      console.log("response.data:", response.data);
-
-      console.log("=== EMAIL CHECKS ===");
-      console.log("response.emailOrangtua:", response.emailOrangtua);
-      console.log("response.data.emailOrangtua:", response.data?.emailOrangtua);
-
-      console.log("=== ALL KEYS IN RESPONSE ===");
-      if (response.data) {
-        console.log("Keys:", Object.keys(response.data));
-      }
-
-      // Return data yang benar
-      // Backend kembalikan response.data berisi object pendaftaran
       return response.data || response;
     },
     enabled: !!id && open,
   });
 
-  // ✅ MUTATION UNTUK KIRIM EMAIL
   const emailMutation = useMutation({
     mutationFn: async () => {
-      // Memanggil API Backend
       return await postRequest(`/pendaftaran/send-notif/${id}`, {});
     },
     onSuccess: () => {
@@ -77,7 +58,6 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
     },
   });
 
-  // ✅ MUTATION UNTUK UPDATE STATUS
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
       return await patchRequest(`/pendaftaran/${id}/status`, {
@@ -86,34 +66,23 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
     },
     onSuccess: () => {
       toast.success("Status berhasil diperbarui!");
-      refetchDetail(); // Refresh data di dalam modal
-      refetch(); // Refresh tabel di halaman utama
+      refetchDetail();
+      refetch();
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || "Gagal update status");
     },
   });
 
-  // ✅ HANDLER KIRIM EMAIL - DENGAN FIELD NAME YANG BENAR
   const handleSendEmail = () => {
-    console.log("=== DEBUG SEND EMAIL ===");
-    console.log("Status Pendaftaran:", data?.statusPendaftaran);
-    console.log("Email Orang Tua:", data?.emailOrangtua); // ✅ Huruf 't' kecil
-
-    // Validasi email (dengan field name yang benar)
     if (!data?.emailOrangtua) {
-      // ✅ Huruf 't' kecil
       toast.error("Email orang tua tidak tersedia!");
       return;
     }
-
-    // Validasi status
     if (!data?.statusPendaftaran) {
       toast.error("Status pendaftaran tidak ditemukan!");
       return;
     }
-
-    // Mapping status untuk konfirmasi
     const statusText =
       {
         pending: "PENDING (Dalam Verifikasi)",
@@ -121,15 +90,12 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
         rejected: "DITOLAK",
       }[data.statusPendaftaran] || data.statusPendaftaran.toUpperCase();
 
-    // Konfirmasi sebelum kirim (dengan field name yang benar)
     const confirmMessage = `Kirim email notifikasi ke ${data.emailOrangtua} dengan status: ${statusText}?`;
-
     if (window.confirm(confirmMessage)) {
       emailMutation.mutate();
     }
   };
 
-  // Fungsi format tanggal yang lebih aman
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
@@ -137,18 +103,16 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
     return format(date, "dd MMMM yyyy", { locale: idLocale });
   };
 
-  const getFileUrl = (path: string | undefined) => {
-    if (!path) return "#";
-    const filename = path.split(/[\\/]/).pop();
+  // ✅ FIX: gunakan path dari database langsung, bukan hardcode bulan
+  // Database sudah menyimpan: "pendaftaran/2026-03/akteLahir-xxx.jpg"
+  // Tinggal gabungkan dengan BASE_URL server
+  const getFileUrl = (filePath: string | undefined) => {
+    if (!filePath) return "#";
     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    return `${baseUrl}/pendaftaran/2026-02/${filename}`;
+    // Hilangkan leading slash jika ada, lalu gabungkan
+    const cleanPath = filePath.replace(/^\//, "");
+    return `${baseUrl}/${cleanPath}`;
   };
-
-  // 🔍 DEBUGGING - Log data yang sudah diproses
-  console.log("=== PROCESSED DATA ===");
-  console.log("data object:", data);
-  console.log("data.emailOrangtua:", data?.emailOrangtua); // ✅ Huruf 't' kecil
-  console.log("data.statusPendaftaran:", data?.statusPendaftaran);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -168,10 +132,8 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
           </div>
         ) : (
           <>
-            {/* ✅ Email Orang Tua di Header dengan Status Badge */}
-            {data?.emailOrangtua ? ( // ✅ Huruf 't' kecil
+            {data?.emailOrangtua ? (
               <div className="space-y-3">
-                {/* Email Section */}
                 <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <Mail className="w-4 h-4 text-blue-600 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -179,28 +141,11 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
                       Email Orang Tua
                     </p>
                     <p className="text-sm font-semibold text-blue-900 truncate">
-                      {data.emailOrangtua} {/* ✅ Huruf 't' kecil */}
+                      {data.emailOrangtua}
                     </p>
                   </div>
-                  {/* <Button
-                    size="sm"
-                    variant="default"
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={emailMutation.isPending}
-                    onClick={handleSendEmail}
-                  >
-                    {emailMutation.isPending ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    ) : (
-                      <Mail className="w-4 h-4 mr-1" />
-                    )}
-                    {emailMutation.isPending
-                      ? "Mengirim..."
-                      : "Kirim Notifikasi"}
-                  </Button> */}
                 </div>
 
-                {/* Status Badge */}
                 <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="flex-1">
                     <p className="text-xs text-gray-600 font-medium mb-1">
@@ -232,8 +177,7 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
             ) : (
               <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-700">
-                  ⚠️ Email Orang Tua tidak ditemukan. Periksa console untuk
-                  debugging.
+                  ⚠️ Email Orang Tua tidak ditemukan.
                 </p>
               </div>
             )}
@@ -356,13 +300,11 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
                   />
                   <InfoField label="Pekerjaan" value={data?.pekerjaanAyah} />
                   <InfoField label="Telepon" value={data?.telpAyah} />
-
                   <InfoField
                     label="Email Orang Tua"
                     value={data?.emailOrangtua}
                     isEmail={true}
                   />
-
                   <InfoField
                     label="Alamat Lengkap"
                     value={data?.alamatAyah}
