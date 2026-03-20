@@ -15,6 +15,7 @@ import {
   UserPen,
   UserPlus,
   UserCircle,
+  Building2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -188,6 +189,12 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       url: "/dashboard/roles",
       icon: UserCog,
       roles: ["Super Administrator", "Admin"],
+    },
+    {
+      title: "Kelola Fasilitas",
+      url: "/dashboard/fasilitas",
+      icon: Building2,
+      roles: ["Super Administrator"], // ← hanya Super Admin
     },
   ];
 

@@ -1,20 +1,12 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -28,27 +20,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Search, RefreshCcw, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, RefreshCcw } from "lucide-react";
 import {
   deleteRequest,
   getRequest,
   patchRequest,
   postRequest,
-  putRequest,
 } from "@/utils/api-call";
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import Swal from "sweetalert2";
 import { useAppContext } from "@/utils/app-context";
-import { useNavigate } from "react-router-dom";
 import { ApiResponse, Role, User } from "@/types/data";
 
 interface InitialForm {
@@ -57,8 +45,7 @@ interface InitialForm {
   nama_lengkap: string;
   role_id: number;
   jabatan?: string;
-  login_terakhir?: string;
-  role: Role; // Ini Object, bukan string!
+  role: Role;
 }
 
 const initialFormData: InitialForm = {
@@ -67,7 +54,6 @@ const initialFormData: InitialForm = {
   nama_lengkap: "",
   role_id: 0,
   jabatan: "",
-  login_terakhir: "",
   role: { role_id: 0, nama_role: "", role_permission: [] },
 };
 
@@ -77,15 +63,11 @@ const UsersManagementPage = () => {
   const [usersFiltered, setUsersFiltered] = useState<User[]>([]);
   const [formData, setFormData] = useState<InitialForm>(initialFormData);
   const [editingId, setEditingId] = useState<string | null>(null);
-
   const [isLoading, setisLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
-
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const limit = 10;
-
   const totalData = usersBackup?.length || 0;
   const totalPages = Math.ceil(totalData / limit);
 
@@ -115,28 +97,33 @@ const UsersManagementPage = () => {
     e.preventDefault();
     setisLoading(true);
 
-    const { role, ...cleanFormData } = formData; // buang object role
+    const { role, ...cleanFormData } = formData;
 
     try {
       if (editingId) {
+        // EDIT — tidak perlu password
         await patchRequest(`/users/${editingId}`, {
-          // ← patch, bukan put
           ...cleanFormData,
           editor_user_id: userLoginInfo.userInfo.user_id,
         });
-        toast.success(`User berhasil diupdate!`);
+        toast.success("User berhasil diupdate!");
       } else {
+        // CREATE — backend akan auto-generate password & kirim email
         await postRequest("/users", {
           ...cleanFormData,
           penulis_user_id: userLoginInfo.userInfo.user_id,
         });
-        toast.success("User berhasil ditambahkan!");
+        toast.success(
+          "User berhasil ditambahkan! Password dikirim ke email user.",
+        );
       }
       setOpen(false);
       resetForm();
       fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || "Terjadi kesalahan");
+      toast.error(
+        error?.response?.data?.message || error?.message || "Terjadi kesalahan",
+      );
     } finally {
       setisLoading(false);
     }
@@ -149,7 +136,7 @@ const UsersManagementPage = () => {
       toast.success("User berhasil dihapus!");
       fetchUsers();
     } catch (error: any) {
-      toast.error(error.message || "Terjadi kesalahan");
+      toast.error(error?.message || "Terjadi kesalahan");
     } finally {
       setisLoading(false);
     }
@@ -158,9 +145,13 @@ const UsersManagementPage = () => {
   const popupDelete = (id: string) => {
     Swal.fire({
       title: "Apakah Anda yakin?",
+      text: "Data user akan dihapus permanen!",
       icon: "warning",
       showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
       confirmButtonText: "Ya, Hapus!",
+      cancelButtonText: "Batal",
     }).then((result) => {
       if (result.isConfirmed) executeDelete(id);
     });
@@ -173,14 +164,12 @@ const UsersManagementPage = () => {
       nama_lengkap: user.nama_lengkap,
       role_id: user.role_id,
       jabatan: user.jabatan,
-      login_terakhir: user.login_terakhir,
-      role: user.role, // Memasukkan object role lengkap
+      role: user.role,
     });
     setEditingId(user.user_id || null);
     setOpen(true);
   };
 
-  // FIX: Fungsi ini sekarang balikin Object Role, bukan cuma string
   const handleRoleChange = (roleName: string) => {
     const roleMap: Record<string, number> = {
       "Super Administrator": 1,
@@ -189,14 +178,10 @@ const UsersManagementPage = () => {
       "Kepala Sekolah SMP": 4,
       "Kepala Sekolah SMA": 5,
     };
-
     setFormData((prev) => ({
       ...prev,
       role_id: roleMap[roleName] || 0,
-      role: {
-        ...prev.role,
-        nama_role: roleName,
-      },
+      role: { ...prev.role, nama_role: roleName },
     }));
   };
 
@@ -228,6 +213,7 @@ const UsersManagementPage = () => {
             >
               <RefreshCcw className="h-4 w-4" />
             </Button>
+
             <Dialog
               open={open}
               onOpenChange={(v) => {
@@ -237,15 +223,25 @@ const UsersManagementPage = () => {
             >
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="h-4 w-4 mr-2" /> Tambah User
+                  <Plus className="h-4 w-4 mr-2" />
+                  Tambah User
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>
                     {editingId ? "Edit User" : "Tambah User"}
                   </DialogTitle>
                 </DialogHeader>
+
+                {/* Info auto-generate password — hanya tampil saat tambah baru */}
+                {!editingId && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                    🔐 Password akan di-generate otomatis dan dikirim ke email
+                    user.
+                  </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="username">Username</Label>

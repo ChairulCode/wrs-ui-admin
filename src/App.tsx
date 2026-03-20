@@ -22,6 +22,7 @@ import KegiatanDetailPage from "./pages/Activities/AcitivitiesDetail";
 import { ToastProvider } from "./components/ui/toast";
 import Students from "./pages/Students/page";
 import DashboardMataPelajaran from "./pages/kelola-mapel";
+import Facilities from "./pages/Facilities";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
             path="/dashboard/mata-pelajaran"
             element={<DashboardMataPelajaran />}
           />
+          <Route path="/dashboard/fasilitas" element={<Facilities />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
