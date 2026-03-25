@@ -27,6 +27,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   Plus,
@@ -51,91 +58,92 @@ import { useAppContext } from "@/utils/app-context";
 import DashboardPagination from "@/components/sections/dashboardPagination";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 
-// ─── CONFIG ───────────────────────────────────────────────────────────────────
-
 const SERVER_BASE_URL =
   import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
 const MAX_GAMBAR = 3;
 
-// ─── TYPES ────────────────────────────────────────────────────────────────────
+const KATEGORI_OPTIONS = [
+  "Seni & Budaya",
+  "Olahraga",
+  "Akademik",
+  "Pramuka",
+  "Teknologi",
+  "Keagamaan",
+  "Lainnya",
+];
 
-interface FasilitasGambar {
+// ── INTERFACES ────────────────────────────────────────────────────────────────
+
+interface EkskulGambar {
   gambar_id: string;
-  fasilitas_id: string;
+  ekskul_id: string;
   path_gambar: string;
   urutan: number;
   created_at: string;
 }
 
-interface Fasilitas {
-  fasilitas_id: string;
+interface Ekskul {
+  ekskul_id: string;
   nama: string;
   deskripsi: string | null;
+  kategori: string | null;
+  hari_latihan: string | null;
   icon: string | null;
   urutan: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  gambar: FasilitasGambar[];
+  gambar: EkskulGambar[];
 }
 
-interface FasilitasForm {
+interface EkskulForm {
   nama: string;
   deskripsi: string;
+  kategori: string;
+  hari_latihan: string;
   icon: string;
   urutan: string;
   is_active: boolean;
 }
 
-const initialForm: FasilitasForm = {
+const initialForm: EkskulForm = {
   nama: "",
   deskripsi: "",
+  kategori: "",
+  hari_latihan: "",
   icon: "",
   urutan: "",
   is_active: true,
 };
 
-// ─── COMPONENT ────────────────────────────────────────────────────────────────
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 
-const Facilities = () => {
+const Ekstrakurikuler = () => {
   const { userLoginInfo } = useAppContext();
 
-  // Data
-  const [fasilitasAll, setFasilitasAll] = useState<Fasilitas[]>([]);
-  const [fasilitasFiltered, setFasilitasFiltered] = useState<Fasilitas[]>([]);
-
-  // Form & dialog
-  const [formData, setFormData] = useState<FasilitasForm>(initialForm);
+  const [ekskulAll, setEkskulAll] = useState<Ekskul[]>([]);
+  const [ekskulFiltered, setEkskulFiltered] = useState<Ekskul[]>([]);
+  const [formData, setFormData] = useState<EkskulForm>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-
-  // Emoji picker — sama persis seperti di ekstrakurikuler
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
-
-  // Gambar
   const [newImageFiles, setNewImageFiles] = useState<
     { file: File; previewUrl: string }[]
   >([]);
-  const [existingGambar, setExistingGambar] = useState<FasilitasGambar[]>([]);
+  const [existingGambar, setExistingGambar] = useState<EkskulGambar[]>([]);
   const [deletingGambarIds, setDeletingGambarIds] = useState<string[]>([]);
-
-  // UI
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Pagination
   const [page, setPage] = useState(1);
   const limit = 10;
-  const totalData = fasilitasAll.length;
+  const totalData = ekskulAll.length;
   const totalPages = Math.ceil(totalData / limit) || 1;
-
   const totalGambarAktif =
     existingGambar.filter((g) => !deletingGambarIds.includes(g.gambar_id))
       .length + newImageFiles.length;
 
-  // ─── TUTUP EMOJI PICKER SAAT KLIK DI LUAR ──────────────────────────────────
-
+  // Tutup emoji picker saat klik di luar
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -151,25 +159,20 @@ const Facilities = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showEmojiPicker]);
 
-  // ─── FETCH ─────────────────────────────────────────────────────────────────
-
-  const fetchFasilitas = async () => {
+  const fetchEkskul = async () => {
     setIsLoading(true);
     try {
-      const res = await getRequest(`/fasilitas?page=1&limit=1000`);
-      const sorted: Fasilitas[] = (res.data || []).sort(
-        (a: Fasilitas, b: Fasilitas) => (a.urutan ?? 999) - (b.urutan ?? 999),
+      const res = await getRequest(`/ekstrakurikuler?page=1&limit=1000`);
+      const sorted: Ekskul[] = (res.data || []).sort(
+        (a: Ekskul, b: Ekskul) => (a.urutan ?? 999) - (b.urutan ?? 999),
       );
-      setFasilitasAll(sorted);
+      setEkskulAll(sorted);
     } catch (e) {
-      console.error(e);
-      toast.error("Gagal memuat data fasilitas.");
+      toast.error("Gagal memuat data ekstrakurikuler.");
     } finally {
       setIsLoading(false);
     }
   };
-
-  // ─── RESET ─────────────────────────────────────────────────────────────────
 
   const resetForm = () => {
     setFormData(initialForm);
@@ -177,169 +180,140 @@ const Facilities = () => {
     setExistingGambar([]);
     setDeletingGambarIds([]);
     setEditingId(null);
-    setShowEmojiPicker(false); // reset emoji picker juga
+    setShowEmojiPicker(false);
   };
-
-  // ─── DIALOG ────────────────────────────────────────────────────────────────
 
   const openCreateDialog = () => {
     resetForm();
     setOpen(true);
   };
 
-  const openEditDialog = (fasilitas: Fasilitas) => {
+  const openEditDialog = (ekskul: Ekskul) => {
     resetForm();
     setFormData({
-      nama: fasilitas.nama,
-      deskripsi: fasilitas.deskripsi || "",
-      icon: fasilitas.icon || "",
-      urutan: fasilitas.urutan?.toString() || "",
-      is_active: fasilitas.is_active,
+      nama: ekskul.nama,
+      deskripsi: ekskul.deskripsi || "",
+      kategori: ekskul.kategori || "",
+      hari_latihan: ekskul.hari_latihan || "",
+      icon: ekskul.icon || "",
+      urutan: ekskul.urutan?.toString() || "",
+      is_active: ekskul.is_active,
     });
-    setExistingGambar(fasilitas.gambar || []);
-    setEditingId(fasilitas.fasilitas_id);
+    setExistingGambar(ekskul.gambar || []);
+    setEditingId(ekskul.ekskul_id);
     setOpen(true);
   };
-
-  // ─── EMOJI HANDLER ─────────────────────────────────────────────────────────
 
   const handleEmojiClick = (emojiData: EmojiClickData) => {
     setFormData((prev) => ({ ...prev, icon: emojiData.emoji }));
     setShowEmojiPicker(false);
   };
 
-  // ─── GAMBAR HANDLERS ───────────────────────────────────────────────────────
-
   const handleSelectGambar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-
     const sisa = MAX_GAMBAR - totalGambarAktif;
     if (sisa <= 0) {
-      toast.error(`Maksimal ${MAX_GAMBAR} gambar per fasilitas.`);
+      toast.error(`Maksimal ${MAX_GAMBAR} gambar.`);
       e.target.value = "";
       return;
     }
-
     const filesToAdd = files.slice(0, sisa);
-    if (files.length > sisa) {
+    if (files.length > sisa)
       toast.warning(`Hanya ${sisa} gambar lagi yang bisa ditambahkan.`);
-    }
-
     filesToAdd.forEach((file) => {
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = () =>
         setNewImageFiles((prev) => [
           ...prev,
           { file, previewUrl: reader.result as string },
         ]);
-      };
       reader.readAsDataURL(file);
     });
     e.target.value = "";
   };
 
-  const tandaiHapusExisting = (gambar_id: string) => {
+  const tandaiHapusExisting = (gambar_id: string) =>
     setDeletingGambarIds((prev) => [...prev, gambar_id]);
-  };
-
-  const batalHapusExisting = (gambar_id: string) => {
+  const batalHapusExisting = (gambar_id: string) =>
     setDeletingGambarIds((prev) => prev.filter((id) => id !== gambar_id));
-  };
-
-  const hapusGambarBaru = (idx: number) => {
+  const hapusGambarBaru = (idx: number) =>
     setNewImageFiles((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // ─── SUBMIT ────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nama.trim()) {
-      toast.error("Nama fasilitas wajib diisi.");
+      toast.error("Nama ekstrakurikuler wajib diisi.");
       return;
     }
     setIsLoading(true);
-
     try {
       const payload = {
         nama: formData.nama.trim(),
         deskripsi: formData.deskripsi.trim() || null,
+        kategori: formData.kategori || null,
+        hari_latihan: formData.hari_latihan.trim() || null,
         icon: formData.icon.trim() || null,
         urutan: formData.urutan ? parseInt(formData.urutan) : null,
         is_active: formData.is_active,
       };
-
       if (editingId) {
-        await putRequest(`/fasilitas/${editingId}`, payload);
-
+        await putRequest(`/ekstrakurikuler/${editingId}`, payload);
         for (const gambar_id of deletingGambarIds) {
           try {
-            await deleteRequest(`/fasilitas/${editingId}/gambar/${gambar_id}`);
-          } catch (err) {
-            console.warn("Gagal hapus gambar:", err);
-          }
+            await deleteRequest(
+              `/ekstrakurikuler/${editingId}/gambar/${gambar_id}`,
+            );
+          } catch {}
         }
-
         for (const item of newImageFiles) {
           const fd = new FormData();
           fd.append("image", item.file);
           try {
-            await apiInstance.post(`/fasilitas/${editingId}/gambar`, fd, {
+            await apiInstance.post(`/ekstrakurikuler/${editingId}/gambar`, fd, {
               headers: { "Content-Type": "multipart/form-data" },
             });
-          } catch (err) {
-            console.warn("Gagal upload gambar:", err);
-          }
+          } catch {}
         }
-
-        toast.success("Fasilitas berhasil diupdate!");
+        toast.success("Ekstrakurikuler berhasil diupdate!");
       } else {
-        const created = await postRequest(`/fasilitas`, payload);
-        const newId: string | undefined = created?.fasilitas_id;
-
+        const created = await postRequest(`/ekstrakurikuler`, payload);
+        const newId: string | undefined = created?.ekskul_id;
         if (newId && newImageFiles.length > 0) {
           for (const item of newImageFiles) {
             const fd = new FormData();
             fd.append("image", item.file);
             try {
-              await apiInstance.post(`/fasilitas/${newId}/gambar`, fd, {
+              await apiInstance.post(`/ekstrakurikuler/${newId}/gambar`, fd, {
                 headers: { "Content-Type": "multipart/form-data" },
               });
-            } catch (err) {
-              console.warn("Gagal upload gambar:", err);
-            }
+            } catch {}
           }
         }
-
-        toast.success("Fasilitas berhasil ditambahkan!");
+        toast.success("Ekstrakurikuler berhasil ditambahkan!");
       }
-
       resetForm();
       setOpen(false);
-      await fetchFasilitas();
+      await fetchEkskul();
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message || error?.message || "Terjadi kesalahan",
       );
-      console.error("handleSubmit error:", error?.response?.data || error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ─── DELETE ────────────────────────────────────────────────────────────────
-
   const executeDelete = async (id: string) => {
     setIsLoading(true);
     try {
-      await deleteRequest(`/fasilitas/${id}`);
-      toast.success("Fasilitas berhasil dihapus!");
-      if (fasilitasFiltered.length === 1 && page > 1) setPage((p) => p - 1);
+      await deleteRequest(`/ekstrakurikuler/${id}`);
+      toast.success("Ekstrakurikuler berhasil dihapus!");
+      if (ekskulFiltered.length === 1 && page > 1) setPage((p) => p - 1);
     } catch (error: any) {
       toast.error(error?.message || "Terjadi kesalahan saat menghapus.");
     } finally {
-      await fetchFasilitas();
+      await fetchEkskul();
       setIsLoading(false);
     }
   };
@@ -347,7 +321,7 @@ const Facilities = () => {
   const popupDelete = (id: string, nama: string) => {
     Swal.fire({
       title: "Apakah Anda yakin?",
-      text: `Fasilitas "${nama}" beserta semua gambarnya akan dihapus permanen!`,
+      text: `Ekstrakurikuler "${nama}" beserta semua gambarnya akan dihapus permanen!`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#dc2626",
@@ -359,21 +333,18 @@ const Facilities = () => {
     });
   };
 
-  // ─── EFFECTS ───────────────────────────────────────────────────────────────
-
   useEffect(() => {
-    fetchFasilitas();
+    fetchEkskul();
   }, []);
 
   useEffect(() => {
-    const filtered = fasilitasAll.filter((f) =>
-      f.nama.toLowerCase().includes(searchTerm.toLowerCase()),
+    const filtered = ekskulAll.filter((e) =>
+      e.nama.toLowerCase().includes(searchTerm.toLowerCase()),
     );
-    setFasilitasFiltered(filtered.slice((page - 1) * limit, page * limit));
-  }, [searchTerm, fasilitasAll, page]);
+    setEkskulFiltered(filtered.slice((page - 1) * limit, page * limit));
+  }, [searchTerm, ekskulAll, page]);
 
-  // ─── GUARD ROLE ────────────────────────────────────────────────────────────
-
+  // ── ROLE GUARD ─────────────────────────────────────────────────────────────
   if (userLoginInfo?.userInfo?.role !== "Super Administrator") {
     return (
       <DashboardLayout>
@@ -390,32 +361,29 @@ const Facilities = () => {
     );
   }
 
-  // ─── RENDER ────────────────────────────────────────────────────────────────
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* HEADER */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Fasilitas</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Ekstrakurikuler
+            </h1>
             <p className="text-muted-foreground">
-              Kelola data fasilitas sekolah (maks. {MAX_GAMBAR} gambar per
-              fasilitas)
+              Kelola data ekstrakurikuler sekolah (maks. {MAX_GAMBAR} gambar)
             </p>
           </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={fetchFasilitas}
+              onClick={fetchEkskul}
               disabled={isLoading}
             >
-              <RefreshCcw className="h-4 w-4 mr-2" />
-              Refresh
+              <RefreshCcw className="h-4 w-4 mr-2" /> Refresh
             </Button>
             <Button onClick={openCreateDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Tambah Fasilitas
+              <Plus className="h-4 w-4 mr-2" /> Tambah Ekskul
             </Button>
           </div>
         </div>
@@ -425,7 +393,7 @@ const Facilities = () => {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Cari nama fasilitas..."
+              placeholder="Cari nama ekstrakurikuler..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 max-w-sm"
@@ -436,7 +404,7 @@ const Facilities = () => {
         {/* TABLE */}
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle>Daftar Fasilitas</CardTitle>
+            <CardTitle>Daftar Ekstrakurikuler</CardTitle>
             <CardDescription>
               Total {totalData} data | Halaman {page} dari {totalPages}
             </CardDescription>
@@ -449,7 +417,8 @@ const Facilities = () => {
                   <TableHead className="w-[100px]">Gambar</TableHead>
                   <TableHead>Nama</TableHead>
                   <TableHead className="w-[60px]">Icon</TableHead>
-                  <TableHead>Deskripsi</TableHead>
+                  <TableHead>Kategori</TableHead>
+                  <TableHead>Hari Latihan</TableHead>
                   <TableHead className="w-[80px]">Urutan</TableHead>
                   <TableHead className="w-[100px]">Status</TableHead>
                   <TableHead className="text-right w-[120px]">Aksi</TableHead>
@@ -458,33 +427,29 @@ const Facilities = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center text-muted-foreground py-10"
-                    >
+                    <TableCell colSpan={9} className="text-center py-10">
                       Memuat data...
                     </TableCell>
                   </TableRow>
-                ) : fasilitasFiltered.length === 0 ? (
+                ) : ekskulFiltered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
-                      className="text-center text-muted-foreground py-10"
+                      colSpan={9}
+                      className="text-center py-10 text-muted-foreground"
                     >
                       {searchTerm
-                        ? "Tidak ada fasilitas yang cocok."
-                        : "Belum ada data fasilitas."}
+                        ? "Tidak ada ekskul yang cocok."
+                        : "Belum ada data ekstrakurikuler."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  fasilitasFiltered.map((fasilitas, index) => {
-                    const firstImg = fasilitas.gambar?.[0];
+                  ekskulFiltered.map((ekskul, index) => {
+                    const firstImg = ekskul.gambar?.[0];
                     return (
-                      <TableRow key={fasilitas.fasilitas_id}>
+                      <TableRow key={ekskul.ekskul_id}>
                         <TableCell className="font-medium">
                           {(page - 1) * limit + index + 1}
                         </TableCell>
-
                         <TableCell>
                           <div className="relative w-[72px] h-[72px] bg-muted rounded-md overflow-hidden flex items-center justify-center">
                             {firstImg ? (
@@ -492,12 +457,12 @@ const Facilities = () => {
                                 <img
                                   loading="lazy"
                                   src={`${SERVER_BASE_URL}/${firstImg.path_gambar}`}
-                                  alt={fasilitas.nama}
+                                  alt={ekskul.nama}
                                   className="w-full h-full object-cover"
                                 />
-                                {fasilitas.gambar.length > 1 && (
+                                {ekskul.gambar.length > 1 && (
                                   <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-semibold rounded-full px-1.5 py-0.5">
-                                    +{fasilitas.gambar.length - 1}
+                                    +{ekskul.gambar.length - 1}
                                   </span>
                                 )}
                               </>
@@ -506,45 +471,40 @@ const Facilities = () => {
                             )}
                           </div>
                         </TableCell>
-
                         <TableCell className="font-medium">
-                          {fasilitas.nama.length > 40
-                            ? `${fasilitas.nama.substring(0, 40)}...`
-                            : fasilitas.nama}
+                          {ekskul.nama.length > 35
+                            ? `${ekskul.nama.substring(0, 35)}...`
+                            : ekskul.nama}
                         </TableCell>
-
                         <TableCell className="text-2xl">
-                          {fasilitas.icon || "-"}
+                          {ekskul.icon || "-"}
                         </TableCell>
-
-                        <TableCell className="text-muted-foreground text-sm">
-                          {fasilitas.deskripsi
-                            ? fasilitas.deskripsi.length > 50
-                              ? `${fasilitas.deskripsi.substring(0, 50)}...`
-                              : fasilitas.deskripsi
-                            : "-"}
+                        <TableCell>
+                          {ekskul.kategori ? (
+                            <Badge variant="outline">{ekskul.kategori}</Badge>
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
-
+                        <TableCell className="text-sm text-muted-foreground">
+                          {ekskul.hari_latihan || "-"}
+                        </TableCell>
                         <TableCell className="text-center">
-                          {fasilitas.urutan ?? "-"}
+                          {ekskul.urutan ?? "-"}
                         </TableCell>
-
                         <TableCell>
                           <Badge
-                            variant={
-                              fasilitas.is_active ? "default" : "secondary"
-                            }
+                            variant={ekskul.is_active ? "default" : "secondary"}
                           >
-                            {fasilitas.is_active ? "Aktif" : "Nonaktif"}
+                            {ekskul.is_active ? "Aktif" : "Nonaktif"}
                           </Badge>
                         </TableCell>
-
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openEditDialog(fasilitas)}
+                              onClick={() => openEditDialog(ekskul)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -552,10 +512,7 @@ const Facilities = () => {
                               size="sm"
                               variant="destructive"
                               onClick={() =>
-                                popupDelete(
-                                  fasilitas.fasilitas_id,
-                                  fasilitas.nama,
-                                )
+                                popupDelete(ekskul.ekskul_id, ekskul.nama)
                               }
                             >
                               <Trash2 className="h-4 w-4" />
@@ -572,7 +529,7 @@ const Facilities = () => {
         </Card>
 
         <DashboardPagination
-          key="fasilitas-pagination"
+          key="ekskul-pagination"
           page={page}
           handlePageChange={(newPage) => {
             if (newPage >= 1 && newPage <= totalPages) setPage(newPage);
@@ -591,24 +548,23 @@ const Facilities = () => {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingId ? "Edit Fasilitas" : "Tambah Fasilitas"}
+                {editingId ? "Edit Ekstrakurikuler" : "Tambah Ekstrakurikuler"}
               </DialogTitle>
               <DialogDescription>
                 {editingId
-                  ? "Ubah data fasilitas yang sudah ada."
-                  : "Isi form berikut untuk menambahkan fasilitas baru."}
+                  ? "Ubah data ekstrakurikuler yang sudah ada."
+                  : "Isi form berikut untuk menambahkan ekstrakurikuler baru."}
               </DialogDescription>
             </DialogHeader>
-
             <form onSubmit={handleSubmit} className="space-y-5 mt-2">
               {/* NAMA */}
               <div className="space-y-2">
                 <Label htmlFor="nama">
-                  Nama Fasilitas <span className="text-red-500">*</span>
+                  Nama Ekstrakurikuler <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="nama"
-                  placeholder="Contoh: Laboratorium Komputer"
+                  placeholder="Contoh: Paskibraka"
                   value={formData.nama}
                   onChange={(e) =>
                     setFormData({ ...formData, nama: e.target.value })
@@ -617,14 +573,54 @@ const Facilities = () => {
                 />
               </div>
 
-              {/* ICON — dengan Emoji Picker, sama persis seperti ekstrakurikuler */}
+              {/* KATEGORI */}
+              <div className="space-y-2">
+                <Label>Kategori</Label>
+                <Select
+                  value={formData.kategori}
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, kategori: val })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kategori..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {KATEGORI_OPTIONS.map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {k}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* HARI LATIHAN */}
+              <div className="space-y-2">
+                <Label htmlFor="hari_latihan">
+                  Hari Latihan{" "}
+                  <span className="text-muted-foreground text-xs">
+                    (contoh: Senin & Rabu, 15.00–17.00)
+                  </span>
+                </Label>
+                <Input
+                  id="hari_latihan"
+                  placeholder="Senin & Rabu, 15.00–17.00"
+                  value={formData.hari_latihan}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hari_latihan: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* ICON — dengan Emoji Picker */}
               <div className="space-y-2">
                 <Label htmlFor="icon">Icon</Label>
                 <div className="flex items-center gap-3">
-                  {/* Input manual */}
+                  {/* Input manual tetap tersedia */}
                   <Input
                     id="icon"
-                    placeholder="💻"
+                    placeholder="🎨"
                     value={formData.icon}
                     onChange={(e) =>
                       setFormData({ ...formData, icon: e.target.value })
@@ -646,6 +642,7 @@ const Facilities = () => {
                       Pilih Emoji
                     </Button>
 
+                    {/* Emoji Picker dari library */}
                     {showEmojiPicker && (
                       <div
                         style={{
@@ -668,7 +665,7 @@ const Facilities = () => {
                     )}
                   </div>
 
-                  {/* Preview icon + tombol hapus */}
+                  {/* Preview icon yang dipilih */}
                   {formData.icon && (
                     <div className="flex items-center gap-2">
                       <span className="text-4xl">{formData.icon}</span>
@@ -694,7 +691,7 @@ const Facilities = () => {
                 <Label htmlFor="deskripsi">Deskripsi</Label>
                 <Textarea
                   id="deskripsi"
-                  placeholder="Deskripsikan fasilitas ini..."
+                  placeholder="Deskripsikan kegiatan ekstrakurikuler ini..."
                   value={formData.deskripsi}
                   onChange={(e) =>
                     setFormData({ ...formData, deskripsi: e.target.value })
@@ -731,11 +728,7 @@ const Facilities = () => {
                   {[true, false].map((val) => (
                     <div
                       key={String(val)}
-                      className={`flex items-center gap-2 px-4 py-3 rounded-md border cursor-pointer transition-colors select-none ${
-                        formData.is_active === val
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-border"
-                      }`}
+                      className={`flex items-center gap-2 px-4 py-3 rounded-md border cursor-pointer select-none ${formData.is_active === val ? "border-blue-500 bg-blue-50" : "border-border"}`}
                       onClick={() =>
                         setFormData({ ...formData, is_active: val })
                       }
@@ -758,22 +751,17 @@ const Facilities = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label>
-                    Gambar Fasilitas{" "}
+                    Gambar{" "}
                     <span className="text-muted-foreground text-xs">
                       (maks. {MAX_GAMBAR} gambar)
                     </span>
                   </Label>
                   <span
-                    className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                      totalGambarAktif >= MAX_GAMBAR
-                        ? "bg-red-100 text-red-600"
-                        : "bg-green-100 text-green-700"
-                    }`}
+                    className={`text-xs font-semibold px-2 py-1 rounded-full ${totalGambarAktif >= MAX_GAMBAR ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"}`}
                   >
                     {totalGambarAktif} / {MAX_GAMBAR}
                   </span>
                 </div>
-
                 {existingGambar.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">
@@ -781,7 +769,7 @@ const Facilities = () => {
                     </p>
                     <div className="flex flex-wrap gap-3">
                       {existingGambar.map((g) => {
-                        const ditandaiHapus = deletingGambarIds.includes(
+                        const ditandai = deletingGambarIds.includes(
                           g.gambar_id,
                         );
                         return (
@@ -792,11 +780,9 @@ const Facilities = () => {
                             <img
                               src={`${SERVER_BASE_URL}/${g.path_gambar}`}
                               alt=""
-                              className={`w-full h-full object-cover rounded-md border ${
-                                ditandaiHapus ? "opacity-30 grayscale" : ""
-                              }`}
+                              className={`w-full h-full object-cover rounded-md border ${ditandai ? "opacity-30 grayscale" : ""}`}
                             />
-                            {!ditandaiHapus ? (
+                            {!ditandai ? (
                               <button
                                 type="button"
                                 onClick={() => tandaiHapusExisting(g.gambar_id)}
@@ -808,7 +794,6 @@ const Facilities = () => {
                               <button
                                 type="button"
                                 onClick={() => batalHapusExisting(g.gambar_id)}
-                                title="Batalkan penghapusan"
                                 className="absolute -top-1.5 -right-1.5 bg-gray-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-gray-600 text-[9px] font-bold"
                               >
                                 ↩
@@ -823,7 +808,6 @@ const Facilities = () => {
                     </div>
                   </div>
                 )}
-
                 {newImageFiles.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">
@@ -849,10 +833,9 @@ const Facilities = () => {
                     </div>
                   </div>
                 )}
-
                 {totalGambarAktif < MAX_GAMBAR ? (
                   <Label
-                    htmlFor="fasilitas-upload"
+                    htmlFor="ekskul-upload"
                     className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -866,7 +849,7 @@ const Facilities = () => {
                       </p>
                     </div>
                     <Input
-                      id="fasilitas-upload"
+                      id="ekskul-upload"
                       type="file"
                       className="hidden"
                       accept="image/jpeg,image/png,image/webp"
@@ -876,8 +859,7 @@ const Facilities = () => {
                   </Label>
                 ) : (
                   <p className="text-xs text-red-500 text-center py-2">
-                    Batas {MAX_GAMBAR} gambar telah tercapai. Hapus gambar yang
-                    ada untuk menambah yang baru.
+                    Batas {MAX_GAMBAR} gambar telah tercapai.
                   </p>
                 )}
               </div>
@@ -900,7 +882,7 @@ const Facilities = () => {
                     ? "Menyimpan..."
                     : editingId
                       ? "Simpan Perubahan"
-                      : "Tambah Fasilitas"}
+                      : "Tambah Ekskul"}
                 </Button>
               </div>
             </form>
@@ -911,4 +893,4 @@ const Facilities = () => {
   );
 };
 
-export default Facilities;
+export default Ekstrakurikuler;

@@ -23,6 +23,7 @@ import { ToastProvider } from "./components/ui/toast";
 import Students from "./pages/Students/page";
 import DashboardMataPelajaran from "./pages/kelola-mapel";
 import Facilities from "./pages/Facilities";
+import Ekstrakurikuler from "./pages/Ekstrakurikuler/Ekstrakurikuler";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,10 @@ const App = () => (
           />
           <Route path="/dashboard/fasilitas" element={<Facilities />} />
           <Route path="*" element={<NotFound />} />
+          <Route
+            path="/dashboard/ekstrakurikuler"
+            element={<Ekstrakurikuler />}
+          />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
