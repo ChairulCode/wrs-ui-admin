@@ -66,7 +66,7 @@ const KATEGORI_OPTIONS = [
   "Seni & Budaya",
   "Olahraga",
   "Akademik",
-  "Pramuka",
+  "Bahasa",
   "Teknologi",
   "Keagamaan",
   "Lainnya",
