@@ -22,8 +22,8 @@ import KegiatanDetailPage from "./pages/Activities/AcitivitiesDetail";
 import { ToastProvider } from "./components/ui/toast";
 import Students from "./pages/Students/page";
 import DashboardMataPelajaran from "./pages/kelola-mapel";
-import Facilities from "./pages/Facilities";
 import Ekstrakurikuler from "./pages/Ekstrakurikuler/Ekstrakurikuler";
+import Fasilitas from "./pages/Facilities/index";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +64,7 @@ const App = () => (
             path="/dashboard/mata-pelajaran"
             element={<DashboardMataPelajaran />}
           />
-          <Route path="/dashboard/fasilitas" element={<Facilities />} />
+          <Route path="/dashboard/fasilitas" element={<Fasilitas />} />
           <Route path="*" element={<NotFound />} />
           <Route
             path="/dashboard/ekstrakurikuler"
