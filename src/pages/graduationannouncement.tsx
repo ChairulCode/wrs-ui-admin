@@ -44,26 +44,19 @@ import { useAppContext } from "@/utils/app-context";
 // ─── Helper: ISO / YYYYMMDD → YYYY-MM-DD untuk input[type=date] ─────────────
 const toDateInput = (raw?: string): string => {
   if (!raw) return "";
-  // Sudah format ISO lengkap (dari DB via Prisma: "2005-08-17T00:00:00.000Z")
   if (raw.includes("T") || raw.includes("-")) return raw.substring(0, 10);
-  // Format YYYYMMDD (dari seeding lama)
   if (raw.length === 8)
     return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
   return "";
 };
 
-// ─── Helper: YYYY-MM-DD (dari input date) → YYYYMMDD untuk dikirim ke backend ─
-// Backend service.buatKelulusan menerima ISO string (isISO8601 di validator),
-// tapi editKelulusan juga menerima ISO. Kita kirim YYYY-MM-DD (valid ISO8601).
-const toISODate = (dateInput: string): string => dateInput; // "YYYY-MM-DD" sudah valid ISO8601
+const toISODate = (dateInput: string): string => dateInput;
 
-// ─── Label kelas ──────────────────────────────────────────────────────────────
 const KELAS_LABEL: Record<string, string> = {
   XII_MIPA: "XII IPA",
   XII_IPS: "XII IPS",
 };
 
-// ─── Tipe data ────────────────────────────────────────────────────────────────
 interface KelulusanItem {
   kelulusan_id: string;
   nomor_siswa: string;
@@ -90,7 +83,7 @@ interface FormData {
   jenjang_id: string;
   tahun_ajaran: string;
   kelas: string;
-  tanggal_lahir: string; // YYYY-MM-DD (untuk input[type=date])
+  tanggal_lahir: string;
   status_lulus: boolean;
   keterangan: string;
 }
@@ -106,7 +99,6 @@ const INITIAL_FORM: FormData = {
   keterangan: "",
 };
 
-// ─── Komponen ─────────────────────────────────────────────────────────────────
 const GraduationAnnouncement = () => {
   const { userLoginInfo, isLoading: contextLoading } = useAppContext();
 
@@ -165,9 +157,6 @@ const GraduationAnnouncement = () => {
     }
   };
 
-  // ── Fetch data kelulusan ──────────────────────────────────────────────────
-  // GET /api/v1/graduation?page=&limit=&jenjang_id=&search=
-  // Response: { message, metadata: { totalItems, totalPages, currentPage, limit }, data: [] }
   const fetchData = async (page = currentPage) => {
     setLoading(true);
     try {
@@ -181,7 +170,6 @@ const GraduationAnnouncement = () => {
       const res = await api.get("/graduation", { params });
       const all: KelulusanItem[] = res.data.data || [];
 
-      // Filter tambahan di sisi client jika bukan Super Admin/Admin
       const filtered = isSuperAdminOrAdmin()
         ? all
         : all.filter((item) => canAccessJenjang(item.jenjang?.nama_jenjang));
@@ -211,7 +199,6 @@ const GraduationAnnouncement = () => {
     fetchData(currentPage);
   }, [currentPage]);
 
-  // ── Modal ─────────────────────────────────────────────────────────────────
   const handleOpenModal = (item: KelulusanItem | null = null) => {
     if (item) {
       if (
@@ -244,37 +231,26 @@ const GraduationAnnouncement = () => {
     setIsModalOpen(true);
   };
 
-  // ── Submit form (create / update) ─────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
-    /**
-     * Payload yang dikirim:
-     * - tanggal_lahir: YYYY-MM-DD (isISO8601 valid → diterima validator backend)
-     *   Service buatKelulusan / editKelulusan akan new Date(tanggal_lahir) → Prisma DateTime
-     *
-     * Tidak perlu konversi ke YYYYMMDD di sini karena validator backend
-     * menggunakan .isISO8601() bukan format YYYYMMDD khusus.
-     */
     const payload = {
       nomor_siswa: formData.nomor_siswa,
       nama_siswa: formData.nama_siswa,
       jenjang_id: formData.jenjang_id,
       tahun_ajaran: formData.tahun_ajaran,
       kelas: formData.kelas,
-      tanggal_lahir: toISODate(formData.tanggal_lahir), // "YYYY-MM-DD"
+      tanggal_lahir: toISODate(formData.tanggal_lahir),
       status_lulus: formData.status_lulus,
       keterangan: formData.keterangan || null,
     };
 
     try {
       if (selectedData) {
-        // PUT /api/v1/graduation/:kelulusan_id
         await api.put(`/graduation/${selectedData.kelulusan_id}`, payload);
         toast.success("Data kelulusan berhasil diupdate.");
       } else {
-        // POST /api/v1/graduation
         await api.post("/graduation", payload);
         toast.success("Data kelulusan berhasil ditambahkan.");
       }
@@ -287,8 +263,6 @@ const GraduationAnnouncement = () => {
     }
   };
 
-  // ── Hapus ─────────────────────────────────────────────────────────────────
-  // DELETE /api/v1/graduation/:kelulusan_id
   const handleDelete = async (id: string, jenjangNama?: string) => {
     if (!isSuperAdminOrAdmin() && !canAccessJenjang(jenjangNama)) {
       toast.error(
@@ -300,7 +274,6 @@ const GraduationAnnouncement = () => {
     try {
       await api.delete(`/graduation/${id}`);
       toast.success("Data kelulusan berhasil dihapus.");
-      // Kembali ke page 1 jika halaman sekarang jadi kosong
       const newTotal = (meta?.totalItems ?? 1) - 1;
       const maxPage = Math.max(1, Math.ceil(newTotal / PAGE_LIMIT));
       const targetPage = Math.min(currentPage, maxPage);
@@ -311,7 +284,6 @@ const GraduationAnnouncement = () => {
     }
   };
 
-  // ── Loading state ─────────────────────────────────────────────────────────
   if (contextLoading || !userLoginInfo) {
     return (
       <DashboardLayout>
@@ -325,7 +297,6 @@ const GraduationAnnouncement = () => {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <div className="space-y-6 p-2">
@@ -421,6 +392,7 @@ const GraduationAnnouncement = () => {
                 <TableHead>Nama Siswa</TableHead>
                 <TableHead>Kelas</TableHead>
                 <TableHead>Jenjang</TableHead>
+                <TableHead>Tahun Ajaran</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
@@ -428,7 +400,7 @@ const GraduationAnnouncement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10">
+                  <TableCell colSpan={7} className="text-center py-10">
                     <Loader2 className="animate-spin mx-auto h-6 w-6" />
                   </TableCell>
                 </TableRow>
@@ -456,6 +428,10 @@ const GraduationAnnouncement = () => {
                           )}
                         </div>
                       </TableCell>
+                      {/* Kolom tahun ajaran — penting agar admin mudah lihat */}
+                      <TableCell>
+                        <Badge variant="secondary">{item.tahun_ajaran}</Badge>
+                      </TableCell>
                       <TableCell>
                         <Badge
                           className={
@@ -475,11 +451,7 @@ const GraduationAnnouncement = () => {
                           disabled={!hasAccess}
                         >
                           <Edit
-                            className={`h-4 w-4 ${
-                              hasAccess
-                                ? "text-blue-600"
-                                : "text-muted-foreground"
-                            }`}
+                            className={`h-4 w-4 ${hasAccess ? "text-blue-600" : "text-muted-foreground"}`}
                           />
                         </Button>
                         <Button
@@ -494,11 +466,7 @@ const GraduationAnnouncement = () => {
                           disabled={!hasAccess}
                         >
                           <Trash2
-                            className={`h-4 w-4 ${
-                              hasAccess
-                                ? "text-destructive"
-                                : "text-muted-foreground"
-                            }`}
+                            className={`h-4 w-4 ${hasAccess ? "text-destructive" : "text-muted-foreground"}`}
                           />
                         </Button>
                       </TableCell>
@@ -508,7 +476,7 @@ const GraduationAnnouncement = () => {
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="text-center py-10 text-muted-foreground"
                   >
                     Data tidak ditemukan.
@@ -519,7 +487,7 @@ const GraduationAnnouncement = () => {
           </Table>
         </div>
 
-        {/* Pagination — sesuai metadata dari ambilSemuaKelulusan */}
+        {/* Pagination */}
         {meta && meta.totalPages > 1 && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>
@@ -552,7 +520,7 @@ const GraduationAnnouncement = () => {
         )}
       </div>
 
-      {/* ── Modal Form ─────────────────────────────────────────────────────── */}
+      {/* ── Modal Form ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -562,18 +530,30 @@ const GraduationAnnouncement = () => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            {/* Nomor Siswa */}
+            {/* Nomor Siswa — FIX: batasi 10 digit angka saja */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">No. Siswa</Label>
-              <Input
-                className="col-span-3"
-                placeholder="Nomor Induk / NISN"
-                value={formData.nomor_siswa}
-                onChange={(e) =>
-                  setFormData({ ...formData, nomor_siswa: e.target.value })
-                }
-                required
-              />
+              <div className="col-span-3 space-y-1">
+                <Input
+                  placeholder="10 digit nomor induk"
+                  value={formData.nomor_siswa}
+                  maxLength={10}
+                  inputMode="numeric"
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      // Hanya angka, maksimal 10 karakter — sama seperti di client
+                      nomor_siswa: e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 10),
+                    })
+                  }
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maksimal 10 digit angka ({formData.nomor_siswa.length}/10)
+                </p>
+              </div>
             </div>
 
             {/* Nama Siswa */}
@@ -652,18 +632,23 @@ const GraduationAnnouncement = () => {
               </Select>
             </div>
 
-            {/* Tahun Ajaran */}
+            {/* Tahun Ajaran — FIX: format hint yang jelas */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Tahun Ajaran</Label>
-              <Input
-                className="col-span-3"
-                placeholder="2024/2025"
-                value={formData.tahun_ajaran}
-                onChange={(e) =>
-                  setFormData({ ...formData, tahun_ajaran: e.target.value })
-                }
-                required
-              />
+              <div className="col-span-3 space-y-1">
+                <Input
+                  placeholder="Contoh: 2024/2025"
+                  value={formData.tahun_ajaran}
+                  onChange={(e) =>
+                    setFormData({ ...formData, tahun_ajaran: e.target.value })
+                  }
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Format: YYYY/YYYY — contoh: 2024/2025 atau 2025/2026. Akan
+                  otomatis tampil di halaman pengumuman client.
+                </p>
+              </div>
             </div>
 
             {/* Status Lulus */}
