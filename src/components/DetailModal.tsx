@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
 import { postRequest } from "@/utils/api-call";
 import { toast } from "sonner";
+import { useState } from "react";
 
 interface DetailModalProps {
   id: string;
@@ -103,13 +104,9 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
     return format(date, "dd MMMM yyyy", { locale: idLocale });
   };
 
-  // ✅ FIX: gunakan path dari database langsung, bukan hardcode bulan
-  // Database sudah menyimpan: "pendaftaran/2026-03/akteLahir-xxx.jpg"
-  // Tinggal gabungkan dengan BASE_URL server
   const getFileUrl = (filePath: string | undefined) => {
     if (!filePath) return "#";
     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    // Hilangkan leading slash jika ada, lalu gabungkan
     const cleanPath = filePath.replace(/^\//, "");
     return `${baseUrl}/${cleanPath}`;
   };
@@ -168,9 +165,6 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
                         </span>
                       )}
                     </div>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Email akan dikirim sesuai status ini
                   </div>
                 </div>
               </div>
@@ -401,47 +395,99 @@ const InfoField = ({
   </div>
 );
 
-const DocumentCard = ({ title, url }: { title: string; url: string }) => (
-  <div className="border rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-card hover:bg-accent/50 transition-colors">
-    <div className="flex items-center gap-3">
-      <div className="p-2 bg-primary/10 rounded-lg">
-        <FileText className="w-5 h-5 text-primary" />
+const DocumentCard = ({ title, url }: { title: string; url: string }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Deteksi ekstensi file dari URL untuk nama file yang tepat
+  const getFileName = (fileUrl: string, docTitle: string) => {
+    try {
+      const urlPath = new URL(fileUrl).pathname;
+      const ext = urlPath.split(".").pop()?.toLowerCase();
+      const safeName = docTitle.replace(/\s+/g, "_");
+      if (ext && ["jpg", "jpeg", "png", "pdf"].includes(ext)) {
+        return `${safeName}.${ext}`;
+      }
+    } catch {}
+    return docTitle.replace(/\s+/g, "_");
+  };
+
+  const handleDownload = async () => {
+    if (url === "#") return;
+
+    setIsDownloading(true);
+    try {
+      // Fetch file sebagai blob agar browser memunculkan dialog "Save As"
+      // dan tidak langsung preview di tab baru
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Gagal mengambil file");
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = getFileName(url, title);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Bebaskan memory blob URL setelah digunakan
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+      toast.success(`${title} berhasil diunduh!`);
+    } catch (err) {
+      toast.error(`Gagal mengunduh ${title}. Coba lagi.`);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-card hover:bg-accent/50 transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-primary/10 rounded-lg">
+          <FileText className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground">
+            Dokumen pendukung pendaftaran
+          </p>
+        </div>
       </div>
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="text-xs text-muted-foreground">
-          Dokumen pendukung pendaftaran
-        </p>
+      <div className="flex gap-2 w-full sm:w-auto">
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 sm:flex-none"
+          onClick={() => window.open(url, "_blank")}
+          disabled={url === "#"}
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Lihat
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 sm:flex-none"
+          disabled={url === "#" || isDownloading}
+          onClick={handleDownload}
+        >
+          {isDownloading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+              Mengunduh...
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4 mr-2" />
+              Download
+            </>
+          )}
+        </Button>
       </div>
     </div>
-    <div className="flex gap-2 w-full sm:w-auto">
-      <Button
-        size="sm"
-        variant="outline"
-        className="flex-1 sm:flex-none"
-        onClick={() => window.open(url, "_blank")}
-        disabled={url === "#"}
-      >
-        <ExternalLink className="w-4 h-4 mr-2" />
-        Lihat
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="flex-1 sm:flex-none"
-        disabled={url === "#"}
-        onClick={() => {
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = title;
-          link.click();
-        }}
-      >
-        <Download className="w-4 h-4 mr-2" />
-        Download
-      </Button>
-    </div>
-  </div>
-);
+  );
+};
 
 export default DetailModal;
