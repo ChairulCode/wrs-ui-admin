@@ -4,7 +4,7 @@ import { useAppContext } from "./app-context";
 
 // ─── Mapping Role → Kelas yang boleh diakses ─────────────────────────────────
 const ROLE_KELAS_MAP: Record<string, string[]> = {
-  "Kepala Sekolah PG-TK": ["TK A", "TK B"],
+  "Kepala Sekolah PGTK": ["TK A", "TK B"],
   "Kepala Sekolah SD": [
     "1A",
     "1B",

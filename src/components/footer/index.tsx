@@ -279,7 +279,7 @@ const Footer: React.FC = () => {
                     />
                     <div className="footer-contact-text">
                       <p className="footer-contact-label">Telepon</p>
-                      <p className="footer-contact-value">061-7345093</p>
+                      <p className="footer-contact-value">061-7347470</p>
                     </div>
                   </div>
                 </a>

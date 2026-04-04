@@ -121,6 +121,8 @@ const Activities = () => {
   const [isError, setIsError] = useState(false);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const userRole = userLoginInfo?.userInfo?.role?.toLowerCase() || "";
+  const isSuperAdmin = userRole.includes("super");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterYear, setFilterYear] = useState("all");
@@ -182,12 +184,19 @@ const Activities = () => {
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = () => {
+        // ✅ Ganti ekstensi jadi .webp sesuai output compressImage
+        const baseName = file.name
+          .trim()
+          .replace(/\s+/g, "_")
+          .replace(/[^a-zA-Z0-9._-]/g, "_")
+          .replace(/\.[^/.]+$/, ""); // hapus ekstensi asli
+
         setNewImages((prev) => [
           ...prev,
           {
             file,
             previewUrl: reader.result as string,
-            path: "activities/" + file.name,
+            path: `achievements/${baseName}.webp`, // ✅ selalu .webp
           },
         ]);
       };
@@ -212,20 +221,39 @@ const Activities = () => {
     setIsError(false);
 
     try {
-      const allPaths = [...existingImages, ...newImages.map((n) => n.path)];
+      // ✅ STEP 1: Upload gambar baru dulu
+      const uploadedPaths: string[] = [];
+      for (const img of newImages) {
+        const foto = new FormData();
+        foto.append("image", img.file);
+        try {
+          const uploadRes = await postRequest(
+            `/galleries/add/activities`,
+            foto,
+          ); // ✅ bukan achievements
+          const serverPath = uploadRes?.data?.path || uploadRes?.path;
+          uploadedPaths.push(serverPath || img.path);
+        } catch (uploadErr) {
+          console.warn("Upload gambar gagal:", uploadErr);
+          uploadedPaths.push(img.path);
+        }
+      }
+
+      // ✅ STEP 2: Gabung path
+      const allPaths = [...existingImages, ...uploadedPaths];
       const finalPathGambar =
         allPaths.length > 1 ? JSON.stringify(allPaths) : allPaths[0] || "";
 
-      // ✅ FIX: Filter kosong, map ke format {jenjang_id} sesuai ekspektasi service
       const jenjangPayload = formData.jenjang_relasi
         .filter((j) => j.jenjang_id !== "")
         .map((j) => ({ jenjang_id: j.jenjang_id }));
 
+      // ✅ STEP 3: Kirim data kegiatan
       if (editingId) {
         const { kegiatan_id, updated_at, jenjang_relasi, ...restForm } =
-          formData;
-
-        const dataToSubmit = {
+          formData; // ✅ bukan prestasi_id
+        await putRequest(`/kegiatan/${editingId}`, {
+          // ✅ bukan /prestasi
           ...restForm,
           path_gambar: finalPathGambar,
           tanggal_publikasi:
@@ -233,27 +261,14 @@ const Activities = () => {
           updated_at: new Date().toISOString(),
           penulis_user_id: formData.penulis_user_id,
           editor_user_id: userLoginInfo.userInfo.user_id,
-          // EDIT: service editKegiatanLengkap ekspek "jenjang_relasi"
           jenjang_relasi: jenjangPayload,
-        };
-
-        await putRequest(`/kegiatan/${editingId}`, dataToSubmit);
-
-        for (const img of newImages) {
-          const foto = new FormData();
-          foto.append("image", img.file);
-          try {
-            await postRequest(`/galleries/add/activities`, foto);
-          } catch (uploadErr) {
-            console.warn("Upload gambar gagal (non-fatal):", uploadErr);
-          }
-        }
+        });
         toast.success(`Kegiatan berhasil diupdate!`);
       } else {
         const { kegiatan_id, updated_at, jenjang_relasi, ...restForm } =
-          formData;
-
-        const dataToSubmit = {
+          formData; // ✅ bukan prestasi_id
+        await postRequest("/kegiatan", {
+          // ✅ bukan /prestasi
           ...restForm,
           path_gambar: finalPathGambar,
           tanggal_publikasi:
@@ -261,21 +276,8 @@ const Activities = () => {
           updated_at: new Date().toISOString(),
           penulis_user_id: userLoginInfo.userInfo.user_id,
           editor_user_id: userLoginInfo.userInfo.user_id,
-          // CREATE: service buatKegiatan ekspek "jenjang"
           jenjang: jenjangPayload,
-        };
-
-        await postRequest("/kegiatan", dataToSubmit);
-
-        for (const img of newImages) {
-          const foto = new FormData();
-          foto.append("image", img.file);
-          try {
-            await postRequest(`/galleries/add/activities`, foto);
-          } catch (uploadErr) {
-            console.warn("Upload gambar gagal (non-fatal):", uploadErr);
-          }
-        }
+        });
         toast.success("Kegiatan berhasil ditambahkan!");
         resetForm();
         setOpen(false);
@@ -284,10 +286,9 @@ const Activities = () => {
       toast.error(
         error?.response?.data?.message || error?.message || "Terjadi kesalahan",
       );
-      console.error("handleSubmit error:", error?.response?.data || error);
       setIsError(true);
     } finally {
-      fetchActivities();
+      fetchActivities(); // ✅ bukan fetchAchievements
       setisLoading(false);
     }
   };
@@ -343,7 +344,11 @@ const Activities = () => {
       updated_at: kegiatan.updated_at,
       penulis_user_id: kegiatan.penulis_user_id,
       editor_user_id: kegiatan.editor_user_id,
-      jenjang_relasi: kegiatan.jenjang_relasi || [],
+      jenjang_relasi: (kegiatan.jenjang_relasi || []).map((j) => ({
+        kegiatan_id: kegiatan.kegiatan_id,
+        jenjang_id: j.jenjang_id,
+        jenjang: j.jenjang,
+      })),
     });
     setEditingId(kegiatan.kegiatan_id || null);
     setOpen(true);
@@ -362,7 +367,7 @@ const Activities = () => {
 
   const getGradeColors = (grade: string) => {
     switch (grade) {
-      case "PG-TK":
+      case "PGTK":
         return "bg-green-300";
       case "SD":
         return "bg-yellow-300";
@@ -1053,3 +1058,6 @@ const Activities = () => {
 };
 
 export default Activities;
+// function fetchAchievements() {
+//   throw new Error("Function not implemented.");
+// }

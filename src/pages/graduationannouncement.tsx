@@ -128,7 +128,7 @@ const GraduationAnnouncement = () => {
     if (role === "Kepala Sekolah SMA") return ["SMA"];
     if (role === "Kepala Sekolah SMP") return ["SMP"];
     if (role === "Kepala Sekolah SD") return ["SD"];
-    if (role === "Kepala Sekolah PG-TK") return ["PG-TK", "PGTK", "TK"];
+    if (role === "Kepala Sekolah PGTK") return ["PGTK", "PGTK", "TK"];
     return [];
   };
 

@@ -114,6 +114,8 @@ const Achievements = () => {
   >([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [previewIdx, setPreviewIdx] = useState(0);
+  const userRole = userLoginInfo?.userInfo?.role?.toLowerCase() || "";
+  const isSuperAdmin = userRole.includes("super");
 
   const [formData, setFormData] = useState<InitialForm>(initialFormData);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -214,21 +216,38 @@ const Achievements = () => {
     setIsError(false);
 
     try {
-      const allPaths = [...existingImages, ...newImages.map((n) => n.path)];
+      // ✅ STEP 1: Upload gambar baru dulu, ambil path dari server
+      const uploadedPaths: string[] = [];
+      for (const img of newImages) {
+        const foto = new FormData();
+        foto.append("image", img.file);
+        try {
+          const uploadRes = await postRequest(
+            `/galleries/add/achievements`,
+            foto,
+          );
+          const serverPath = uploadRes?.data?.path || uploadRes?.path;
+          uploadedPaths.push(serverPath || img.path);
+        } catch (uploadErr) {
+          console.warn("Upload gambar gagal:", uploadErr);
+          uploadedPaths.push(img.path);
+        }
+      }
+
+      // ✅ STEP 2: Gabung path existing + baru dari server
+      const allPaths = [...existingImages, ...uploadedPaths];
       const finalPathGambar =
         allPaths.length > 1 ? JSON.stringify(allPaths) : allPaths[0] || "";
 
-      // ✅ FIX: Filter jenjang_relasi kosong, lalu map ke format {jenjang_id}
-      // Service buatPrestasi dan editPrestasi sama-sama ekspek field "jenjang"
       const jenjangPayload = formData.jenjang_relasi
         .filter((j) => j.jenjang_id !== "")
         .map((j) => ({ jenjang_id: j.jenjang_id }));
 
+      // ✅ STEP 3: Kirim data dengan path yang sudah benar
       if (editingId) {
         const { prestasi_id, updated_at, jenjang_relasi, ...restForm } =
           formData;
-
-        const dataToSubmit = {
+        await putRequest(`/prestasi/${editingId}`, {
           ...restForm,
           path_gambar: finalPathGambar,
           tanggal_publikasi:
@@ -236,28 +255,13 @@ const Achievements = () => {
           updated_at: new Date().toISOString(),
           penulis_user_id: formData.penulis_user_id,
           editor_user_id: userLoginInfo.userInfo.user_id,
-          // EDIT: service editPrestasiLengkap ekspek "jenjang_relasi"
           jenjang_relasi: jenjangPayload,
-        };
-
-        await putRequest(`/prestasi/${editingId}`, dataToSubmit);
-
-        for (const img of newImages) {
-          const foto = new FormData();
-          foto.append("image", img.file);
-          try {
-            await postRequest(`/galleries/add/achievements`, foto);
-          } catch (uploadErr) {
-            console.warn("Upload gambar gagal (non-fatal):", uploadErr);
-          }
-        }
-
+        });
         toast.success(`Prestasi berhasil diupdate!`);
       } else {
         const { prestasi_id, updated_at, jenjang_relasi, ...restForm } =
           formData;
-
-        const dataToSubmit = {
+        await postRequest("/prestasi", {
           ...restForm,
           path_gambar: finalPathGambar,
           tanggal_publikasi:
@@ -265,22 +269,8 @@ const Achievements = () => {
           updated_at: new Date().toISOString(),
           penulis_user_id: userLoginInfo.userInfo.user_id,
           editor_user_id: userLoginInfo.userInfo.user_id,
-          // CREATE: service buatPrestasi ekspek "jenjang"
           jenjang: jenjangPayload,
-        };
-
-        await postRequest("/prestasi", dataToSubmit);
-
-        for (const img of newImages) {
-          const foto = new FormData();
-          foto.append("image", img.file);
-          try {
-            await postRequest(`/galleries/add/achievements`, foto);
-          } catch (uploadErr) {
-            console.warn("Upload gambar gagal (non-fatal):", uploadErr);
-          }
-        }
-
+        });
         toast.success("Prestasi berhasil ditambahkan!");
         resetForm();
         setOpen(false);
@@ -289,7 +279,6 @@ const Achievements = () => {
       toast.error(
         error?.response?.data?.message || error?.message || "Terjadi kesalahan",
       );
-      console.error("handleSubmit error:", error?.response?.data || error);
       setIsError(true);
     } finally {
       fetchAchievements();
@@ -367,7 +356,7 @@ const Achievements = () => {
 
   const getGradeColors = (grade: string) => {
     switch (grade) {
-      case "PG-TK":
+      case "PGTK":
         return "bg-green-300";
       case "SD":
         return "bg-yellow-300";

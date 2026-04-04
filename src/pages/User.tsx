@@ -173,7 +173,7 @@ const UsersManagementPage = () => {
   const handleRoleChange = (roleName: string) => {
     const roleMap: Record<string, number> = {
       "Super Administrator": 1,
-      "Kepala Sekolah PG-TK": 2,
+      "Kepala Sekolah PGTK": 2,
       "Kepala Sekolah SD": 3,
       "Kepala Sekolah SMP": 4,
       "Kepala Sekolah SMA": 5,
@@ -294,7 +294,7 @@ const UsersManagementPage = () => {
                           <SelectItem value="Super Administrator">
                             Super Administrator
                           </SelectItem>
-                          <SelectItem value="Kepala Sekolah PG-TK">
+                          <SelectItem value="Kepala Sekolah PGTK">
                             Kepala Sekolah PG-TK
                           </SelectItem>
                           <SelectItem value="Kepala Sekolah SD">

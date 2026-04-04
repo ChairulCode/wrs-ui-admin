@@ -55,7 +55,7 @@ const Pendaftaran = () => {
     if (role === "Kepala Sekolah SMA") return ["SMA"];
     if (role === "Kepala Sekolah SMP") return ["SMP"];
     if (role === "Kepala Sekolah SD") return ["SD"];
-    if (role === "Kepala Sekolah PG-TK") return ["PG", "TK"];
+    if (role === "Kepala Sekolah PGTK") return ["PG", "TK"];
     return [];
   };
 
@@ -64,7 +64,7 @@ const Pendaftaran = () => {
     if (role === "Kepala Sekolah SMA") return "SMA";
     if (role === "Kepala Sekolah SMP") return "SMP";
     if (role === "Kepala Sekolah SD") return "SD";
-    if (role === "Kepala Sekolah PG-TK") return "PGTK";
+    if (role === "Kepala Sekolah PGTK") return "PGTK";
     return null;
   };
 

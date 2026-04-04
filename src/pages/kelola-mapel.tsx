@@ -149,7 +149,7 @@ const ROLE_TINGKATAN_MAP: Record<string, Tingkatan[]> = {
     "SMA_MIPA",
     "SMA_IPS",
   ],
-  "Kepala Sekolah PG-TK": ["PG_TK"],
+  "Kepala Sekolah PGTK": ["PG_TK"],
   "Kepala Sekolah SD": ["SD_KELAS_RENDAH", "SD_KELAS_TINGGI"],
   "Kepala Sekolah SMP": ["SMP"],
   "Kepala Sekolah SMA": ["SMA_MIPA", "SMA_IPS"],

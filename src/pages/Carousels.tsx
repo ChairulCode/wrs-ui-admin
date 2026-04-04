@@ -72,7 +72,7 @@ interface InitialForm {
 
 const initialFormData: InitialForm = {
   judul: "",
-  urutan: 0,
+  urutan: 1,
   konten: "",
   path_gambar: "",
   penulis_user_id: "",
@@ -86,7 +86,6 @@ const initialFormData: InitialForm = {
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
-// ✅ Helper: sanitize nama file — ganti spasi & karakter special jadi underscore
 const sanitizeFileName = (name: string): string => {
   return name
     .trim()
@@ -95,52 +94,67 @@ const sanitizeFileName = (name: string): string => {
 };
 
 const CarouselsPage = () => {
-  const { userLoginInfo } = useAppContext();
-  const [carouselsBackup, setCarouselsBackup] = useState<
-    ApiResponse<Carousel>["data"] | []
-  >([]);
-  const [carouselsFiltered, setCarouselsFiltered] = useState<
-    ApiResponse<Carousel>["data"] | []
-  >([]);
+  const [carouselsBackup, setCarouselsBackup] = useState<Carousel[]>([]);
+  const [carouselsFiltered, setCarouselsFiltered] = useState<Carousel[]>([]);
   const [jenjang, setJenjang] = useState<Jenjang[]>([]);
   const [gambar, setGambar] = useState<File | null>(null);
   const [formData, setFormData] = useState<InitialForm>(initialFormData);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [isLoading, setisLoading] = useState(false);
-  const [isError, setIsError] = useState(false);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterYear, setFilterYear] = useState("all");
   const [page, setPage] = useState(1);
-  const totalData = carouselsBackup?.length || 0;
   const limit = 10;
-  const totalPages = Math.ceil(totalData / limit);
+  const totalDataSaatIni = carouselsBackup.length;
+  const isLimitReached = totalDataSaatIni >= 10;
+  const { userLoginInfo } = useAppContext();
+  const userRole = userLoginInfo?.userInfo?.role?.toLowerCase() || "";
+  const isSuperAdmin = userRole.includes("super");
+  const userJenjang = userLoginInfo?.userInfo?.jenjang_id;
+  const firstAllowedJenjang = userLoginInfo?.userInfo?.allowedJenjangIds?.[0];
+  useEffect(() => {
+    const fetchJenjang = async () => {
+      try {
+        const res = await getRequest("/jenjang"); // Pastikan endpoint ini ada di backend
+        setJenjang(res.data);
+      } catch (error) {
+        console.error("Gagal ambil data jenjang", error);
+      }
+    };
 
+    fetchCarousels();
+    if (isSuperAdmin) fetchJenjang(); // Hanya ambil jika superadmin
+  }, [isSuperAdmin]);
+  // 1. Fetch Data dengan Sorting (Urutan terkecil/terbaru di atas)
   const fetchCarousels = async () => {
     setisLoading(true);
+
+    // TAMBAHKAN INI
+    console.log("User Info:", userLoginInfo?.userInfo);
+    console.log("Role:", userLoginInfo?.userInfo?.role);
     try {
       const responseData: ApiResponse<Carousel> = await getRequest(
         `/carousels?page=1&limit=1000`,
       );
-      if (!responseData.data) throw new Error(responseData.message);
-      const fetchJenjang = await getRequest(`/jenjang`);
-      const sortData = responseData.data.sort(
-        (a: Carousel, b: Carousel) => a.urutan - b.urutan,
-      );
-      setCarouselsBackup(sortData);
-      setCarouselsFiltered(sortData?.slice(limit * (page - 1), limit * page));
-      setJenjang(fetchJenjang.data);
+
+      // DEBUG DISINI: Lihat isi data di Console Browser (F12)
+      console.log("Response dari API:", responseData);
+
+      if (!responseData.data || !Array.isArray(responseData.data)) {
+        setCarouselsBackup([]); // Pastikan jadi array kosong, bukan null
+        return;
+      }
+
+      setCarouselsBackup(responseData.data);
     } catch (e) {
-      console.error(e);
-      toast.error("Gagal memuat data carousel.");
-      setCarouselsBackup(null);
-      setIsError(true);
+      console.error("Error Fetch:", e);
+      toast.error("Gagal memuat data.");
     } finally {
       setisLoading(false);
-      setIsError(false);
     }
   };
 
@@ -153,88 +167,206 @@ const CarouselsPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setisLoading(true);
-    setIsError(false);
+
+    if (!editingId && carouselsBackup.length >= 10) {
+      toast.error(
+        "Batas maksimal carousel adalah 10 data. Hapus data lama untuk menambah baru.",
+      );
+      return;
+    }
 
     try {
-      if (editingId) {
-        const { updated_at, penulis_user_id, ...restForm } = formData;
-        const dataToSubmit = {
-          ...restForm,
-          updated_at: new Date().toISOString(),
-          editor_user_id: userLoginInfo.userInfo.user_id,
-          penulis_user_id: formData.penulis_user_id,
-        };
-        await putRequest(`/carousels/${editingId}`, dataToSubmit);
+      // 1. Upload Gambar jika ada file baru
+      let finalImagePath = formData.path_gambar;
 
-        if (gambar) {
-          const foto = new FormData();
-          foto.append("image", gambar);
-          foto.append("alt", formData.path_gambar);
-          await postRequest("/galleries/add/carousels", foto);
-          toast.success(`Foto berhasil diupdate!`);
-        }
-        toast.success(`Carousel berhasil diupdate!`);
-      } else {
-        const { updated_at, ...restForm } = formData;
-        const dataToSubmit = {
-          ...restForm,
-          tanggal_publikasi: formData.tanggal_publikasi
-            ? formData.tanggal_publikasi
-            : new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          penulis_user_id: userLoginInfo.userInfo.user_id,
-          editor_user_id: userLoginInfo.userInfo.user_id,
-        };
-        await postRequest("/carousels", dataToSubmit);
+      if (gambar) {
+        console.log("🖼️ Uploading image:", gambar.name);
 
-        if (gambar) {
-          const foto = new FormData();
-          foto.append("image", gambar);
-          await postRequest("/galleries/add/carousels", foto);
-          toast.success(`Foto berhasil diunggah!`);
+        const foto = new FormData();
+        foto.append("image", gambar);
+
+        try {
+          const uploadRes = await postRequest("/galleries/add/carousels", foto);
+
+          console.log("📤 Upload Response:", uploadRes);
+
+          // ✅ PERBAIKAN: Response langsung punya "path", tanpa wrapper "data"
+          // Coba akses uploadRes.data.path dulu, kalau tidak ada pakai uploadRes.path
+          const uploadedPath = uploadRes?.data?.path || uploadRes?.path;
+
+          if (uploadedPath) {
+            finalImagePath = uploadedPath;
+            console.log("✅ Path updated to:", finalImagePath);
+          } else {
+            console.warn("⚠️ Upload response tidak punya path!");
+            toast.warning(
+              "Upload berhasil tapi path tidak ditemukan, menggunakan path default",
+            );
+          }
+        } catch (uploadError) {
+          console.error("❌ Upload ERROR:", uploadError);
+          toast.error("Gagal upload gambar!");
         }
-        toast.success("Carousel berhasil ditambahkan!");
-        resetForm();
-        setOpen(false);
       }
+
+      console.log("📦 Final path_gambar:", finalImagePath);
+      const userJenjangId =
+        userLoginInfo?.userInfo?.jenjang_id ||
+        userLoginInfo?.userInfo?.allowedJenjangIds?.[0];
+
+      const payload: any = {
+        judul: formData.judul,
+        konten: formData.konten,
+        path_gambar: finalImagePath,
+        is_published: Boolean(formData.is_published),
+        is_featured: Boolean(formData.is_featured),
+        jenjang_id: isSuperAdmin
+          ? formData.jenjang_id
+          : userJenjang || firstAllowedJenjang,
+        tanggal_publikasi: formData.tanggal_publikasi
+          ? new Date(formData.tanggal_publikasi).toISOString()
+          : new Date().toISOString(),
+        penulis_user_id: userLoginInfo?.userInfo?.user_id,
+        editor_user_id: userLoginInfo?.userInfo?.user_id,
+      };
+
+      // Hanya sertakan urutan jika sedang EDIT.
+      // Jika TAMBAH BARU, biarkan backend yang menghitung.
+      if (editingId) {
+        payload.urutan = Number(formData.urutan);
+      }
+
+      console.log("📦 Data yang akan dikirim ke server:", payload);
+
+      if (editingId) {
+        await putRequest(`/carousels/${editingId}`, payload);
+        toast.success("Update Berhasil!");
+      } else {
+        await postRequest("/carousels", payload);
+        toast.success("Tambah Berhasil!");
+      }
+
+      setOpen(false);
+      resetForm();
+      await fetchCarousels();
     } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || error?.message || "Terjadi kesalahan",
-      );
-      console.error("handleSubmit error:", error?.response?.data || error);
-      setIsError(true);
+      console.error("FULL ERROR OBJECT:", error);
+
+      const backendErrors = error?.response?.data?.errors;
+      if (Array.isArray(backendErrors)) {
+        backendErrors.forEach((err: any) => {
+          toast.error(`${err.path}: ${err.msg}`);
+        });
+      } else {
+        toast.error(error?.response?.data?.message || "Gagal menyimpan data");
+      }
     } finally {
-      fetchCarousels();
       setisLoading(false);
     }
   };
 
+  // 2. Logic Filtering & Pagination (Mencegah data hilang saat ganti page/filter)
+  useEffect(() => {
+    let result = [...carouselsBackup];
+
+    if (searchTerm) {
+      result = result.filter((c) =>
+        c.judul.toLowerCase().includes(searchTerm.toLowerCase()),
+      );
+    }
+
+    if (filterYear !== "all") {
+      result = result.filter(
+        (c) =>
+          new Date(c.tanggal_publikasi).getFullYear().toString() === filterYear,
+      );
+    }
+
+    const startIndex = (page - 1) * limit;
+    setCarouselsFiltered(result.slice(startIndex, startIndex + limit));
+  }, [searchTerm, filterYear, carouselsBackup, page]);
+  // Tambahkan di dalam komponen
+  useEffect(() => {
+    return () => {
+      if (gambar) URL.revokeObjectURL(URL.createObjectURL(gambar));
+    };
+  }, [gambar]);
+
+  const totalPages =
+    Math.ceil(
+      carouselsBackup.filter(
+        (c) =>
+          c.judul.toLowerCase().includes(searchTerm.toLowerCase()) &&
+          (filterYear === "all" ||
+            new Date(c.tanggal_publikasi).getFullYear().toString() ===
+              filterYear),
+      ).length / limit,
+    ) || 1;
+
+  // Initial Load
+  useEffect(() => {
+    fetchCarousels();
+  }, []);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) setPage(newPage);
+  };
+
+  const handleUploadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const safeName = sanitizeFileName(file.name);
+      setFormData((prev) => ({
+        ...prev,
+        path_gambar: "carousels/" + safeName,
+      }));
+      setGambar(file);
+    }
+  };
+  const filteredData = useMemo(() => {
+    let result = [...carouselsBackup];
+
+    if (searchTerm) {
+      result = result.filter((c) =>
+        c.judul.toLowerCase().includes(searchTerm.toLowerCase()),
+      );
+    }
+
+    if (filterYear !== "all") {
+      result = result.filter(
+        (c) =>
+          new Date(c.tanggal_publikasi).getFullYear().toString() === filterYear,
+      );
+    }
+
+    const startIndex = (page - 1) * limit;
+    return result.slice(startIndex, startIndex + limit);
+  }, [searchTerm, filterYear, carouselsBackup, page]);
+
+  // Hapus useEffect yang men-set setCarouselsFiltered
+
+  // Delete Logic
   const executeDelete = async (id: string) => {
     setisLoading(true);
     try {
       await deleteRequest(`/carousels/${id}`);
-      const isLastItemOnPage = carouselsFiltered.length === 1;
-      if (isLastItemOnPage && page > 1) setPage((prev) => prev - 1);
       toast.success("Carousel berhasil dihapus!");
-    } catch (error: any) {
-      toast.error(error?.message || "Terjadi kesalahan");
-      setIsError(true);
-    } finally {
       fetchCarousels();
+    } catch (error: any) {
+      toast.error(error?.message || "Gagal menghapus");
+    } finally {
       setisLoading(false);
     }
   };
 
   const popupDelete = (id: string) => {
     Swal.fire({
-      title: "Apakah Anda yakin?",
-      text: "Data carousel akan dihapus permanen!",
+      title: "Yakin?",
+      text: "Data akan dihapus permanen!",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#6b7280",
       confirmButtonText: "Ya, Hapus!",
-      cancelButtonText: "Batal",
     }).then((result) => {
       if (result.isConfirmed) executeDelete(id);
     });
@@ -242,7 +374,7 @@ const CarouselsPage = () => {
 
   const openEditDialog = (carousel: Carousel) => {
     const formattedDate = carousel.tanggal_publikasi
-      ? new Date(carousel.tanggal_publikasi!).toISOString().split("T")[0]
+      ? new Date(carousel.tanggal_publikasi).toISOString().split("T")[0]
       : "";
 
     setFormData({
@@ -259,116 +391,73 @@ const CarouselsPage = () => {
       jenjang_id: carousel.jenjang_id || null,
     });
     setEditingId(carousel.carousel_id || null);
-    setGambar(null);
     setOpen(true);
   };
 
   const carouselsYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    return Array.from({ length: 10 }, (_, i) => currentYear - i).map((y) =>
-      y.toString(),
-    );
+    return Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
   }, []);
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) setPage(newPage);
-  };
-
-  const handleUploadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // ✅ FIX: sanitize nama file — ganti spasi & karakter special jadi underscore
-      const safeName = sanitizeFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormData((prev) => ({
-          ...prev,
-          path_gambar: "carousels/" + safeName,
-        }));
-        setGambar(file);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  useEffect(() => {
-    fetchCarousels();
-  }, []);
-
-  useEffect(() => {
-    const newTotalData = carouselsBackup?.length || 0;
-    const newTotalPages = Math.ceil(newTotalData / limit);
-    if (page > newTotalPages && page > 1) {
-      setPage(newTotalPages);
-      return;
-    }
-    setCarouselsFiltered(
-      carouselsBackup.slice((page - 1) * limit, page * limit),
-    );
-  }, [page, carouselsBackup]);
-
-  useEffect(() => {
-    let filtered = carouselsBackup.filter((c: Carousel) =>
-      c.judul.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-    if (filterYear !== "all") {
-      filtered = filtered.filter(
-        (c: Carousel) =>
-          new Date(c.tanggal_publikasi).getFullYear().toString() === filterYear,
-      );
-    }
-    setCarouselsFiltered(filtered.slice(0, limit * page));
-  }, [searchTerm, filterYear, carouselsBackup, page]);
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* HEADER */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Carousel</h1>
             <p className="text-muted-foreground">
               Kelola data carousel sekolah
+              <span
+                className={`ml-2 font-medium ${isLimitReached ? "text-red-500" : "text-green-600"}`}
+              >
+                ({carouselsBackup.length}/10)
+              </span>
             </p>
+            <div
+              className="border-l-4 pl-4 py-1"
+              style={{ borderColor: "#ddc588" }}
+            >
+              <p
+                className="text-sm italic opacity-90"
+                style={{ color: "#ddc588" }}
+              >
+                Disarankan mengunggah 10 gambar carousel untuk stabilitas
+                animasi swipe.
+              </p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={() => {
-                fetchCarousels();
-                setFilterYear("all");
-                setSearchTerm("");
-              }}
+              onClick={fetchCarousels}
               disabled={isLoading}
               variant="secondary"
             >
-              <RefreshCcw className="h-4 w-4" />
+              <RefreshCcw
+                className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              />
             </Button>
 
             <Dialog
               open={open}
-              onOpenChange={(value) => {
-                setOpen(value);
-                if (!value) resetForm();
+              onOpenChange={(val) => {
+                setOpen(val);
+                if (!val) resetForm();
               }}
             >
               <DialogTrigger asChild>
-                <Button>
+                <Button disabled={isLimitReached || isLoading}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Tambah Carousel
+                  {isLimitReached ? "Slot Penuh (Maks 10)" : "Tambah Carousel"}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-scroll">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {editingId ? "Edit Carousel" : "Tambah Carousel"}
                   </DialogTitle>
-                  <DialogDescription>
-                    Isi informasi carousel dengan lengkap
-                  </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* JUDUL */}
                   <div className="space-y-2">
                     <Label htmlFor="title">Judul Carousel</Label>
                     <Input
@@ -381,98 +470,95 @@ const CarouselsPage = () => {
                     />
                   </div>
 
-                  {/* URUTAN */}
-                  <div className="space-y-2">
-                    <Label htmlFor="order">Urutan</Label>
-                    <Input
-                      type="number"
-                      id="order"
-                      value={formData.urutan}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          urutan: Number(e.target.value),
-                        })
-                      }
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Bungkus seluruh blok dengan editingId agar benar-benar hilang saat Tambah */}
+                    {editingId ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="order">Urutan Tampil</Label>
+                        <Input
+                          type="number"
+                          id="order"
+                          value={formData.urutan}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              urutan: Math.max(1, Number(e.target.value)),
+                            })
+                          }
+                          min={1}
+                        />
+                        <p className="text-[10px] text-muted-foreground italic">
+                          *Ubah angka untuk mengatur posisi gambar
+                        </p>
+                      </div>
+                    ) : (
+                      /* Opsional: Bisa diisi div kosong atau info lain 
+       agar layout grid grid-cols-2 tetap konsisten 
+    */
+                      <div className="space-y-2">
+                        <Label className="opacity-50">Urutan</Label>
+                        <Input
+                          disabled
+                          placeholder="Otomatis"
+                          className="bg-gray-50"
+                        />
+                        <p className="text-[10px] text-muted-foreground italic">
+                          *Urutan akan diatur otomatis oleh sistem
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Tanggal</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={formData.tanggal_publikasi}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            tanggal_publikasi: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
 
-                  {/* TANGGAL */}
                   <div className="space-y-2">
-                    <Label htmlFor="carousels_date">Tanggal</Label>
-                    <Input
-                      id="carousels_date"
-                      type="date"
-                      value={formData.tanggal_publikasi}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          tanggal_publikasi: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
-                  {/* GAMBAR PREVIEW */}
-                  <div className="space-y-2">
-                    <Label htmlFor="image">Gambar Carousel</Label>
-                    <div
-                      className="flex items-center justify-center w-full border-2 rounded-sm overflow-hidden max-h-[300px]"
-                      style={{ minHeight: "120px", background: "#f5f5f5" }}
-                    >
+                    <Label>Gambar Preview</Label>
+                    <div className="border rounded-md p-2 flex justify-center bg-gray-50 min-h-[150px] items-center">
                       {gambar ? (
                         <img
                           src={URL.createObjectURL(gambar)}
-                          alt="Preview"
-                          className="w-full h-auto object-contain"
+                          className="max-h-[200px] object-contain"
                         />
                       ) : formData.path_gambar ? (
                         <img
-                          src={`${BASE_URL}/${encodeURIComponent(formData.path_gambar).replace(/%2F/g, "/")}`}
-                          alt="Gambar Carousel"
-                          className="w-full h-auto object-contain"
+                          src={`${BASE_URL}/${formData.path_gambar}`}
+                          className="max-h-[200px] object-contain"
                         />
                       ) : (
-                        <p className="py-10 text-neutral-500">
-                          Tidak ada gambar
-                        </p>
+                        <span className="text-gray-400">Belum ada gambar</span>
                       )}
                     </div>
-                    {/* Tampilkan nama file yang akan disimpan */}
-                    {formData.path_gambar && (
-                      <p className="text-xs text-muted-foreground">
-                        Path: {formData.path_gambar}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-center w-full">
                     <Label
                       htmlFor="dropzone-file"
-                      className="flex flex-col items-center justify-center w-full h-64 bg-neutral-secondary-medium rounded-sm border-2 border-default-strong rounded-base cursor-pointer hover:bg-neutral-tertiary-medium"
+                      className="cursor-pointer border-2 border-dashed flex flex-col items-center p-6 rounded-md hover:bg-gray-50"
                     >
-                      <div className="flex flex-col items-center justify-center text-body pt-5 pb-6">
-                        <CloudUploadIcon className="w-8 h-8 mb-4" />
-                        <p className="mb-2 text-sm">
-                          <span className="font-semibold">Click to upload</span>{" "}
-                          or drag and drop
-                        </p>
-                        <p className="text-xs">
-                          SVG, PNG, JPG or GIF (MAX. 800x400px)
-                        </p>
-                      </div>
+                      <CloudUploadIcon className="mb-2 text-gray-400" />
+                      <span className="text-sm text-gray-600">
+                        Klik untuk upload gambar
+                      </span>
                       <Input
                         id="dropzone-file"
                         type="file"
                         className="hidden"
                         accept="image/*"
                         onChange={handleUploadImage}
-                        multiple={false}
                       />
                     </Label>
                   </div>
 
-                  {/* KONTEN */}
                   <div className="space-y-2">
                     <Label htmlFor="content">Konten</Label>
                     <Textarea
@@ -481,98 +567,33 @@ const CarouselsPage = () => {
                       onChange={(e) =>
                         setFormData({ ...formData, konten: e.target.value })
                       }
-                      rows={8}
+                      rows={4}
                     />
                   </div>
 
-                  {/* JENJANG */}
                   <div className="space-y-2">
-                    <Label htmlFor="jenjang_select">Jenjang</Label>
+                    <Label>Tampilkan di Web?</Label>
                     <Select
-                      value={formData.jenjang_id || "none"}
+                      value={formData.is_published ? "true" : "false"}
                       onValueChange={(val) =>
                         setFormData({
                           ...formData,
-                          jenjang_id: val === "none" ? null : val,
+                          is_published: val === "true",
                         })
                       }
                     >
-                      <SelectTrigger id="jenjang_select">
-                        <SelectValue placeholder="Pilih Jenjang (opsional)" />
+                      <SelectTrigger>
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Semua Jenjang</SelectItem>
-                        {jenjang.map((item) => (
-                          <SelectItem
-                            key={item.jenjang_id}
-                            value={item.jenjang_id}
-                          >
-                            {item.nama_jenjang}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="true">Ya, Tampilkan</SelectItem>
+                        <SelectItem value="false">Sembunyikan</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* TAMPILKAN */}
-                  <div className="grid gap-4">
-                    <Label>Tampilkan</Label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div
-                        className={`flex items-center ps-4 rounded-sm border border-default bg-neutral-primary-soft rounded-base ${formData.is_published && "border-blue-500"}`}
-                      >
-                        <Input
-                          id="is_published_true"
-                          type="checkbox"
-                          checked={formData.is_published}
-                          name="is_published"
-                          className="w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none"
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              is_published: prev.is_published
-                                ? true
-                                : e.target.checked,
-                            }))
-                          }
-                        />
-                        <Label
-                          htmlFor="is_published_true"
-                          className="w-full py-4 select-none ms-2 text-sm font-medium text-heading"
-                        >
-                          Ya
-                        </Label>
-                      </div>
-                      <div
-                        className={`flex items-center ps-4 rounded-sm border border-default bg-neutral-primary-soft rounded-base ${!formData.is_published && "border-blue-500"}`}
-                      >
-                        <Input
-                          id="is_published_false"
-                          type="checkbox"
-                          checked={!formData.is_published}
-                          name="is_published"
-                          className="w-4 h-4 text-neutral-primary border-default-medium bg-neutral-secondary-medium rounded-full checked:border-brand focus:ring-2 focus:outline-none focus:ring-brand-subtle border border-default appearance-none"
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              is_published: prev.is_published
-                                ? false
-                                : e.target.checked,
-                            }))
-                          }
-                        />
-                        <Label
-                          htmlFor="is_published_false"
-                          className="w-full py-4 select-none ms-2 text-sm font-medium text-heading"
-                        >
-                          Tidak
-                        </Label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Menyimpan..." : "Simpan"}
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? "Memproses..." : "Simpan Carousel"}
                   </Button>
                 </form>
               </DialogContent>
@@ -580,167 +601,100 @@ const CarouselsPage = () => {
           </div>
         </div>
 
-        {/* FILTER */}
-        <div className="flex items-center gap-4">
+        {/* <div className="flex items-center gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Cari judul carousel..."
+              placeholder="Cari judul..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
               className="pl-10 max-w-sm"
             />
           </div>
-          <div className="space-x-2 flex items-center">
-            <Label htmlFor="filter-year" className="text-sm font-medium">
-              Tahun:
-            </Label>
-            <Select value={filterYear} onValueChange={setFilterYear}>
-              <SelectTrigger id="filter-year" className="w-[150px]">
-                <SelectValue placeholder="Semua Tahun" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Tahun</SelectItem>
-                {carouselsYears.map((year) => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+          <Select
+            value={filterYear}
+            onValueChange={(val) => {
+              setFilterYear(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Tahun" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Tahun</SelectItem>
+              {carouselsYears.map((y) => (
+                <SelectItem key={y} value={y}>
+                  {y}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div> */}
 
-        {/* TABLE */}
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Daftar Carousel</CardTitle>
-            <CardDescription>
-              Total {totalData} data | Halaman {page} dari {totalPages}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Card>
+          <CardContent className="pt-6">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nomor</TableHead>
+                  <TableHead>No</TableHead>
                   <TableHead>Gambar</TableHead>
                   <TableHead>Judul</TableHead>
                   <TableHead>Urutan</TableHead>
-                  <TableHead>Konten</TableHead>
-                  <TableHead>Tampilkan</TableHead>
-                  <TableHead className="w-[150px]">Tanggal</TableHead>
-                  <TableHead className="text-right w-[100px]">Aksi</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center text-muted-foreground py-10"
-                    >
+                    <TableCell colSpan={6} className="text-center py-10">
                       Memuat data...
                     </TableCell>
                   </TableRow>
-                ) : (
-                  carouselsFiltered &&
-                  carouselsFiltered.map((carousel, index) => (
-                    <TableRow key={carousel.carousel_id}>
-                      <TableCell className="font-medium">
-                        {(page - 1) * limit + index + 1}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <div
-                          style={{
-                            height: "100px",
-                            width: "100px",
-                            overflow: "hidden",
-                            background: "#f0f0f0",
-                            borderRadius: "4px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <img
-                            loading="lazy"
-                            height={100}
-                            width={100}
-                            src={`${BASE_URL}/${encodeURIComponent(carousel.path_gambar).replace(/%2F/g, "/")}`}
-                            alt=""
-                            style={{
-                              width: "100px",
-                              height: "100px",
-                              objectFit: "contain",
-                            }}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {carousel.judul?.length > 30
-                          ? `${carousel.judul.substring(0, 30)}...`
-                          : carousel.judul}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {carousel.urutan}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {carousel.konten?.length > 30
-                          ? `${carousel.konten.substring(0, 30)}...`
-                          : carousel.konten}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {carousel.is_published ? "Ya" : "Tidak"}
-                      </TableCell>
+                ) : carouselsFiltered.length > 0 ? (
+                  carouselsFiltered.map((c, i) => (
+                    <TableRow key={c.carousel_id}>
+                      <TableCell>{(page - 1) * limit + i + 1}</TableCell>
                       <TableCell>
-                        {carousel.tanggal_publikasi
-                          ? new Date(
-                              carousel.tanggal_publikasi,
-                            ).toLocaleDateString("id-ID")
-                          : "-"}
+                        <img
+                          src={`${BASE_URL}/${c.path_gambar}`}
+                          className="w-16 h-10 object-cover rounded"
+                        />
                       </TableCell>
-                      <TableCell className="text-right flex gap-2">
+                      <TableCell className="font-medium">{c.judul}</TableCell>
+                      <TableCell>{c.urutan}</TableCell>
+                      <TableCell>
+                        {c.is_published ? "Aktif" : "Nonaktif"}
+                      </TableCell>
+                      <TableCell className="space-x-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() =>
-                            navigate(
-                              `/dashboard/carousels/${carousel.carousel_id}`,
-                            )
-                          }
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEditDialog(carousel)}
+                          onClick={() => openEditDialog(c)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() =>
-                            popupDelete(carousel.carousel_id || "")
-                          }
+                          onClick={() => popupDelete(c.carousel_id!)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))
-                )}
-                {!isLoading && carouselsFiltered?.length === 0 && (
+                ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
-                      className="text-center text-muted-foreground py-10"
+                      colSpan={6}
+                      className="text-center py-10 text-muted-foreground"
                     >
-                      {searchTerm !== "" || filterYear !== "all"
-                        ? "Tidak ada carousel yang cocok dengan kriteria filter."
-                        : "Belum ada data carousel."}
+                      Data tidak ditemukan.
                     </TableCell>
                   </TableRow>
                 )}
@@ -750,7 +704,6 @@ const CarouselsPage = () => {
         </Card>
 
         <DashboardPagination
-          key="carousels-pagination"
           page={page}
           handlePageChange={handlePageChange}
           totalPages={totalPages}

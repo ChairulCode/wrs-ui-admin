@@ -15,7 +15,6 @@ import Pendaftaran from "./pages/Pendaftaran";
 import SubjectGrades from "./pages/SubjectGrades";
 import Carousels from "./pages/Carousels";
 import NotFound from "./pages/NotFound";
-import PrestasiDetail from "./pages/Achievements/AchievementDetail";
 import RoleManagementPage from "./pages/Roles";
 import UserManagementPage from "./pages/User";
 import KegiatanDetailPage from "./pages/Activities/AcitivitiesDetail";
@@ -41,10 +40,7 @@ const App = () => (
           <Route path="/dashboard/sosial" element={<About />} />
           <Route path="/dashboard/achievements" element={<Achievements />} />
           <Route path="/dashboard/students" element={<Students />} />
-          <Route
-            path="/dashboard/achievements/:prestasi_id"
-            element={<PrestasiDetail />}
-          />
+
           <Route path="/dashboard/activities" element={<Activities />} />
           <Route
             path="/dashboard/activities/:kegiatan_id"

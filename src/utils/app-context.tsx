@@ -27,6 +27,8 @@ interface LoginForm {
 
 export interface UserInfo {
   userInfo: {
+    allowedJenjangIds: any;
+    jenjang_id: any;
     user_id: string;
     username: string;
     email: string;
@@ -125,7 +127,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
         setisAdmin(
           [
             "Super Administrator",
-            "Kepala Sekolah PG-TK",
+            "Kepala Sekolah PGTK",
             "Kepala Sekolah SD",
             "Kepala Sekolah SMP",
             "Kepala Sekolah SMA",
