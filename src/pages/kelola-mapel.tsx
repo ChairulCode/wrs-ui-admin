@@ -130,8 +130,6 @@ const TINGKATAN_MAP = Object.fromEntries(
   TINGKATAN_LIST.map((t) => [t.value, t]),
 );
 
-// ✅ Mapping role → tingkatan yang boleh diakses
-// Konsisten dengan ROLE_KELAS_MAP di use-permission.ts
 const ROLE_TINGKATAN_MAP: Record<string, Tingkatan[]> = {
   "Super Administrator": [
     "PG_TK",
@@ -163,6 +161,60 @@ const blankForm = (
   tingkatan,
   urutan: 1,
 });
+
+// ─── Helper: Normalize response dari backend ──────────────────────────────────
+//
+// FIX UTAMA: Backend bisa return berbagai struktur response.
+// Fungsi ini memastikan data yang masuk ke state SELALU punya field lengkap.
+//
+// Kemungkinan struktur response backend:
+//   1. res.data = { id, kode, nama, tingkatan, urutan, isActive }  ← ideal
+//   2. res.data = { id, kode, nama, tingkatan, urutan }            ← isActive missing
+//   3. res.data = { data: { id, kode, ... } }                      ← nested
+//   4. res.data = { mataPelajaran: { id, kode, ... } }             ← nested lain
+//
+function normalizeMapelFromResponse(
+  responseData: unknown,
+  formData: Omit<MataPelajaran, "id" | "isActive">,
+): MataPelajaran {
+  // ── Debug: Lihat struktur response backend di console ──────────────────────
+  console.group("🔍 [DEBUG] normalizeMapelFromResponse");
+  console.log("Raw responseData:", responseData);
+  console.log("Form data (fallback):", formData);
+
+  // Coba berbagai kemungkinan struktur response
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = responseData as any;
+
+  // Deteksi nested response
+  const data =
+    raw?.mataPelajaran ?? // { mataPelajaran: {...} }
+    raw?.data ?? // { data: {...} }
+    raw ?? // langsung objek
+    {};
+
+  console.log("Extracted data (setelah normalisasi struktur):", data);
+
+  const normalized: MataPelajaran = {
+    // ID: wajib dari server, fallback ke crypto.randomUUID() sebagai last resort
+    id: String(data.id ?? data._id ?? crypto.randomUUID()),
+
+    // Field lain: prioritaskan dari server, fallback ke form
+    kode: String(data.kode ?? formData.kode),
+    nama: String(data.nama ?? formData.nama),
+    tingkatan: (data.tingkatan ?? formData.tingkatan) as Tingkatan,
+    urutan: Number(data.urutan ?? formData.urutan),
+
+    // ✅ FIX: isActive hampir pasti tidak dikirim backend saat POST baru
+    // Default ke true karena data baru pasti aktif
+    isActive: data.isActive !== undefined ? Boolean(data.isActive) : true,
+  };
+
+  console.log("Normalized MataPelajaran:", normalized);
+  console.groupEnd();
+
+  return normalized;
+}
 
 // ─── Modal Form ───────────────────────────────────────────────────────────────
 
@@ -216,8 +268,6 @@ function ModalForm({
             <Select
               value={data.tingkatan}
               onValueChange={(v) => onChange("tingkatan", v)}
-              // ✅ Saat edit — tidak bisa ganti tingkatan
-              // Saat tambah — hanya tampil tingkatan yang boleh diakses role ini
               disabled={mode === "edit"}
             >
               <SelectTrigger className="border-slate-200">
@@ -306,16 +356,13 @@ function ModalForm({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardMataPelajaran() {
-  // ✅ Ambil role dari usePermission — konsisten dengan use-permission.ts
   const { role, isSuperAdmin } = usePermission();
 
-  // Tingkatan yang boleh diakses role ini
   const allowedTingkatan: Tingkatan[] = useMemo(
     () => ROLE_TINGKATAN_MAP[role] ?? [],
     [role],
   );
 
-  // Tingkatan info yang boleh diakses (untuk render)
   const allowedTingkatanList = useMemo(
     () => TINGKATAN_LIST.filter((t) => allowedTingkatan.includes(t.value)),
     [allowedTingkatan],
@@ -324,15 +371,12 @@ export default function DashboardMataPelajaran() {
   const [allMapel, setAllMapel] = useState<MataPelajaran[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ── Filter & search
-  // Default active: tingkatan pertama yang diizinkan (bukan "all" untuk Kepala Sekolah)
   const [activeTingkatan, setActiveTingkatan] = useState<Tingkatan | "all">(
     allowedTingkatan.length === 1 ? allowedTingkatan[0] : "all",
   );
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
 
-  // ── Modal
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [form, setForm] = useState<Omit<MataPelajaran, "id" | "isActive">>(
@@ -340,26 +384,44 @@ export default function DashboardMataPelajaran() {
   );
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // ── Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<MataPelajaran | null>(null);
-
-  // ── Toggle loading per item
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  // ── Fetch — hanya tingkatan yang diizinkan
+  // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchAll = async () => {
     setIsLoading(true);
     try {
       const res = await getRequest("/mata-pelajaran/all");
+
+      // Debug: lihat seluruh response fetch
+      console.group("🔍 [DEBUG] fetchAll response");
+      console.log("Full res:", res);
+      console.log("res.data:", res.data);
+      console.groupEnd();
+
       const raw: MataPelajaran[] = [];
       for (const tingkatan of Object.keys(res.data)) {
-        // ✅ Filter: hanya ambil tingkatan yang boleh diakses role ini
         if (!allowedTingkatan.includes(tingkatan as Tingkatan)) continue;
         const items = res.data[tingkatan]?.mataPelajaran ?? [];
-        raw.push(...items);
+
+        // ── FIX: Pastikan setiap item dari fetch juga punya field lengkap ──
+        // (defensive, seharusnya dari GET data sudah lengkap)
+        const safeItems = items.map((item: unknown) =>
+          normalizeMapelFromResponse(item, {
+            kode: "",
+            nama: "",
+            tingkatan: tingkatan as Tingkatan,
+            urutan: 0,
+          }),
+        );
+
+        raw.push(...safeItems);
       }
+
+      console.log("✅ [DEBUG] allMapel setelah fetch:", raw);
       setAllMapel(raw);
-    } catch {
+    } catch (err) {
+      console.error("❌ [DEBUG] fetchAll error:", err);
       toast.error("Gagal memuat data mata pelajaran");
     } finally {
       setIsLoading(false);
@@ -368,11 +430,21 @@ export default function DashboardMataPelajaran() {
 
   useEffect(() => {
     if (allowedTingkatan.length > 0) fetchAll();
-  }, [role]); // refetch jika role berubah
+  }, [role]);
 
-  // ── Derived: filtered list
+  // ── Derived: filtered list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let r = [...allMapel];
+
+    // ── FIX: Guard — skip item yang tidak valid (tidak punya isActive) ──────
+    r = r.filter((m) => {
+      if (!m || typeof m.isActive === "undefined") {
+        console.warn("⚠️ [DEBUG] Item mapel tidak valid, di-skip:", m);
+        return false;
+      }
+      return true;
+    });
+
     if (activeTingkatan !== "all")
       r = r.filter((m) => m.tingkatan === activeTingkatan);
     if (!showInactive) r = r.filter((m) => m.isActive);
@@ -389,19 +461,20 @@ export default function DashboardMataPelajaran() {
     });
   }, [allMapel, activeTingkatan, showInactive, search]);
 
-  // ── Stats — hanya untuk tingkatan yang diizinkan
+  // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(
     () =>
       allowedTingkatanList.map((t) => ({
         ...t,
-        total: allMapel.filter((m) => m.tingkatan === t.value).length,
-        aktif: allMapel.filter((m) => m.tingkatan === t.value && m.isActive)
-          .length,
+        total: allMapel.filter((m) => m && m.tingkatan === t.value).length,
+        aktif: allMapel.filter(
+          (m) => m && m.tingkatan === t.value && m.isActive,
+        ).length,
       })),
     [allMapel, allowedTingkatanList],
   );
 
-  // ── CRUD
+  // ── CRUD ──────────────────────────────────────────────────────────────────
   const openAdd = (defaultTingkatan?: Tingkatan) => {
     const t =
       defaultTingkatan ??
@@ -438,29 +511,72 @@ export default function DashboardMataPelajaran() {
       toast.error("Kode hanya boleh huruf kapital, angka, tanda hubung");
       return;
     }
-    // ✅ Guard: pastikan tingkatan yang disimpan boleh diakses role ini
     if (!allowedTingkatan.includes(form.tingkatan)) {
       toast.error("Anda tidak punya akses ke tingkatan ini");
       return;
     }
+
     try {
       if (modalMode === "add") {
         const res = await postRequest("/mata-pelajaran", form);
-        setAllMapel((prev) => [...prev, res.data]);
+
+        // ── Debug: Lihat raw response POST ──────────────────────────────────
+        console.group("🔍 [DEBUG] saveMapel (add) response");
+        console.log("Full res:", res);
+        console.log("res.data:", res.data);
+        console.log("form (data yang dikirim):", form);
+        console.groupEnd();
+
+        // ── FIX UTAMA: Normalisasi response sebelum masuk ke state ──────────
+        const newMapel = normalizeMapelFromResponse(res.data, form);
+
+        console.log("✅ [DEBUG] newMapel yang akan masuk state:", newMapel);
+
+        setAllMapel((prev) => {
+          const updated = [...prev, newMapel];
+          console.log("✅ [DEBUG] allMapel setelah tambah:", updated);
+          return updated;
+        });
+
         toast.success(`${form.nama} berhasil ditambahkan`);
       } else if (editingId) {
         const res = await putRequest(`/mata-pelajaran/${editingId}`, {
           nama: form.nama,
           urutan: form.urutan,
         });
+
+        // Debug edit response
+        console.group("🔍 [DEBUG] saveMapel (edit) response");
+        console.log("Full res:", res);
+        console.log("res.data:", res.data);
+        console.groupEnd();
+
+        // ── FIX: Normalisasi response edit juga ─────────────────────────────
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawEdit = (res.data as any)?.data ?? res.data ?? {};
+
         setAllMapel((prev) =>
-          prev.map((m) => (m.id === editingId ? { ...m, ...res.data } : m)),
+          prev.map((m) => {
+            if (m.id !== editingId) return m;
+            const updated: MataPelajaran = {
+              ...m, // pertahankan semua field lama
+              nama: rawEdit.nama ?? form.nama, // update hanya yang berubah
+              urutan: rawEdit.urutan ?? form.urutan,
+              // isActive tidak berubah saat edit biasa
+            };
+            console.log("✅ [DEBUG] item setelah edit:", updated);
+            return updated;
+          }),
         );
+
         toast.success(`${form.nama} berhasil diperbarui`);
       }
+
       clearMapelCache();
       setModalOpen(false);
-    } catch {}
+    } catch (err) {
+      console.error("❌ [DEBUG] saveMapel error:", err);
+    }
   };
 
   const toggleActive = async (m: MataPelajaran) => {
@@ -480,7 +596,8 @@ export default function DashboardMataPelajaran() {
         toast.success(`${m.nama} diaktifkan kembali`);
       }
       clearMapelCache();
-    } catch {
+    } catch (err) {
+      console.error("❌ [DEBUG] toggleActive error:", err);
     } finally {
       setTogglingId(null);
     }
@@ -492,11 +609,13 @@ export default function DashboardMataPelajaran() {
       setAllMapel((prev) => prev.filter((x) => x.id !== m.id));
       clearMapelCache();
       toast.success(`${m.nama} dihapus`);
-    } catch {}
+    } catch (err) {
+      console.error("❌ [DEBUG] hardDelete error:", err);
+    }
     setDeleteTarget(null);
   };
 
-  // ── Group by tingkatan untuk display
+  // ── Group by tingkatan untuk display ─────────────────────────────────────
   const grouped = useMemo(() => {
     const map = new Map<Tingkatan, MataPelajaran[]>();
     for (const m of filtered) {
@@ -506,7 +625,7 @@ export default function DashboardMataPelajaran() {
     return map;
   }, [filtered]);
 
-  // ── Guard: role tidak dikenali
+  // ── Guard: role tidak dikenali ────────────────────────────────────────────
   if (allowedTingkatan.length === 0) {
     return (
       <DashboardLayout>
@@ -565,7 +684,7 @@ export default function DashboardMataPelajaran() {
             </div>
           </div>
 
-          {/* Stats — hanya tingkatan yang diizinkan */}
+          {/* Stats */}
           <div
             className={cn(
               "grid gap-3",
@@ -584,7 +703,7 @@ export default function DashboardMataPelajaran() {
                 onClick={() =>
                   setActiveTingkatan(
                     allowedTingkatan.length === 1
-                      ? t.value // single tingkatan tidak bisa di-toggle ke "all"
+                      ? t.value
                       : activeTingkatan === t.value
                         ? "all"
                         : t.value,
@@ -642,7 +761,6 @@ export default function DashboardMataPelajaran() {
               )}
             </div>
 
-            {/* Tingkatan pill — hanya untuk multi-tingkatan */}
             {allowedTingkatan.length > 1 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
@@ -677,7 +795,6 @@ export default function DashboardMataPelajaran() {
               </div>
             )}
 
-            {/* Toggle nonaktif */}
             <button
               onClick={() => setShowInactive(!showInactive)}
               className={cn(

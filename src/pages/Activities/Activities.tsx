@@ -81,7 +81,6 @@ type JenjangRelasi = {
   jenjang: Jenjang;
 };
 
-// ✅ FIX: jenjang_relasi dikosongkan agar tidak ada data dummy yang ikut terkirim
 const initialFormData: InitialForm = {
   kegiatan_id: "",
   judul: "",
@@ -99,6 +98,38 @@ const initialFormData: InitialForm = {
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
+// ✅ Mapping role ke kode jenjang yang diizinkan
+// null = akses semua (superadmin)
+const ROLE_JENJANG_MAP: Record<string, string[] | null> = {
+  superadmin: null,
+  "admin pgtk": ["PGTK"],
+  "admin sd": ["SD"],
+  "admin smp": ["SMP"],
+  "admin sma": ["SMA"],
+};
+
+/**
+ * Ambil daftar kode jenjang yang diizinkan berdasarkan role.
+ * Return null  → superadmin, boleh akses semua.
+ * Return []    → role tidak dikenali, tidak boleh akses apapun.
+ */
+const getAllowedJenjangCodes = (role: string): string[] | null => {
+  // Exact match dulu
+  if (role in ROLE_JENJANG_MAP) return ROLE_JENJANG_MAP[role];
+
+  // Fallback: cek kata "super"
+  if (role.includes("super")) return null;
+
+  // Partial match untuk admin per jenjang
+  for (const [key, value] of Object.entries(ROLE_JENJANG_MAP)) {
+    if (key !== "superadmin" && role.includes(key.replace("admin ", ""))) {
+      return value;
+    }
+  }
+
+  return [];
+};
+
 const Activities = () => {
   const { userLoginInfo } = useAppContext();
   const [activitiesBackup, setActivitiesBackup] = useState<
@@ -115,21 +146,34 @@ const Activities = () => {
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [previewIdx, setPreviewIdx] = useState(0);
 
+  // ✅ Ambil role user yang sedang login
+  const userRole = userLoginInfo?.userInfo?.role?.toLowerCase() || "";
+  const isSuperAdmin = userRole.includes("super");
+
+  // ✅ Kode jenjang yang diizinkan untuk role ini
+  // null = semua (superadmin), array = terbatas sesuai role
+  const allowedJenjangCodes = useMemo(
+    () => getAllowedJenjangCodes(userRole),
+    [userRole],
+  );
+
+  // ✅ Daftar jenjang yang ditampilkan di form checkbox (difilter per role)
+  const filteredJenjangForForm = useMemo(() => {
+    if (allowedJenjangCodes === null) return jenjang; // superadmin: tampil semua
+    return jenjang.filter((j) => allowedJenjangCodes.includes(j.kode_jenjang));
+  }, [jenjang, allowedJenjangCodes]);
+
   const [formData, setFormData] = useState<InitialForm>(initialFormData);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setisLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const userRole = userLoginInfo?.userInfo?.role?.toLowerCase() || "";
-  const isSuperAdmin = userRole.includes("super");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterYear, setFilterYear] = useState("all");
   const [page, setPage] = useState(1);
-  const totalData = activitiesBackup?.length || 0;
   const limit = 10;
-  const totalPages = Math.ceil(totalData / limit);
 
   const allPreviewImages = [
     ...existingImages.map((p) => ({
@@ -144,6 +188,21 @@ const Activities = () => {
     })),
   ];
 
+  // ✅ Filter data backup berdasarkan role sebelum dipakai totalData/totalPages
+  const roleFilteredBackup = useMemo(() => {
+    if (!activitiesBackup) return [];
+    if (allowedJenjangCodes === null) return activitiesBackup; // superadmin
+    if (allowedJenjangCodes.length === 0) return []; // role tidak dikenali
+    return activitiesBackup.filter((a: Kegiatan) =>
+      a.jenjang_relasi?.some((jr: Jenjang_relasi) =>
+        allowedJenjangCodes.includes(jr.jenjang.kode_jenjang),
+      ),
+    );
+  }, [activitiesBackup, allowedJenjangCodes]);
+
+  const totalData = roleFilteredBackup?.length || 0;
+  const totalPages = Math.ceil(totalData / limit);
+
   const fetchActivities = async () => {
     setisLoading(true);
     try {
@@ -157,7 +216,6 @@ const Activities = () => {
           new Date(a.tanggal_publikasi).getTime(),
       );
       setActivitiesBackup(sortData);
-      setActivitiesFiltered(sortData?.slice(limit * (page - 1), limit * page));
       setJenjang(fetchJenjang.data);
     } catch (e) {
       console.error(e);
@@ -184,19 +242,18 @@ const Activities = () => {
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = () => {
-        // ✅ Ganti ekstensi jadi .webp sesuai output compressImage
         const baseName = file.name
           .trim()
           .replace(/\s+/g, "_")
           .replace(/[^a-zA-Z0-9._-]/g, "_")
-          .replace(/\.[^/.]+$/, ""); // hapus ekstensi asli
+          .replace(/\.[^/.]+$/, "");
 
         setNewImages((prev) => [
           ...prev,
           {
             file,
             previewUrl: reader.result as string,
-            path: `achievements/${baseName}.webp`, // ✅ selalu .webp
+            path: `activities/${baseName}.webp`,
           },
         ]);
       };
@@ -221,7 +278,7 @@ const Activities = () => {
     setIsError(false);
 
     try {
-      // ✅ STEP 1: Upload gambar baru dulu
+      // STEP 1: Upload gambar baru dulu
       const uploadedPaths: string[] = [];
       for (const img of newImages) {
         const foto = new FormData();
@@ -230,7 +287,7 @@ const Activities = () => {
           const uploadRes = await postRequest(
             `/galleries/add/activities`,
             foto,
-          ); // ✅ bukan achievements
+          );
           const serverPath = uploadRes?.data?.path || uploadRes?.path;
           uploadedPaths.push(serverPath || img.path);
         } catch (uploadErr) {
@@ -239,7 +296,7 @@ const Activities = () => {
         }
       }
 
-      // ✅ STEP 2: Gabung path
+      // STEP 2: Gabung path
       const allPaths = [...existingImages, ...uploadedPaths];
       const finalPathGambar =
         allPaths.length > 1 ? JSON.stringify(allPaths) : allPaths[0] || "";
@@ -248,12 +305,11 @@ const Activities = () => {
         .filter((j) => j.jenjang_id !== "")
         .map((j) => ({ jenjang_id: j.jenjang_id }));
 
-      // ✅ STEP 3: Kirim data kegiatan
+      // STEP 3: Kirim data kegiatan
       if (editingId) {
         const { kegiatan_id, updated_at, jenjang_relasi, ...restForm } =
-          formData; // ✅ bukan prestasi_id
+          formData;
         await putRequest(`/kegiatan/${editingId}`, {
-          // ✅ bukan /prestasi
           ...restForm,
           path_gambar: finalPathGambar,
           tanggal_publikasi:
@@ -266,9 +322,8 @@ const Activities = () => {
         toast.success(`Kegiatan berhasil diupdate!`);
       } else {
         const { kegiatan_id, updated_at, jenjang_relasi, ...restForm } =
-          formData; // ✅ bukan prestasi_id
+          formData;
         await postRequest("/kegiatan", {
-          // ✅ bukan /prestasi
           ...restForm,
           path_gambar: finalPathGambar,
           tanggal_publikasi:
@@ -288,7 +343,7 @@ const Activities = () => {
       );
       setIsError(true);
     } finally {
-      fetchActivities(); // ✅ bukan fetchAchievements
+      fetchActivities();
       setisLoading(false);
     }
   };
@@ -382,30 +437,34 @@ const Activities = () => {
     fetchActivities();
   }, []);
 
+  // ✅ useEffect: sinkronisasi halaman & slice data dari roleFilteredBackup
   useEffect(() => {
-    const newTotalData = activitiesBackup?.length || 0;
-    const newTotalPages = Math.ceil(newTotalData / limit);
+    const newTotalPages = Math.ceil((roleFilteredBackup?.length || 0) / limit);
     if (page > newTotalPages && page > 1) {
       setPage(newTotalPages);
       return;
     }
     setActivitiesFiltered(
-      activitiesBackup.slice((page - 1) * limit, page * limit),
+      roleFilteredBackup.slice((page - 1) * limit, page * limit),
     );
-  }, [page, activitiesBackup]);
+  }, [page, roleFilteredBackup]);
 
+  // ✅ useEffect: filter search + tahun + role sekaligus
   useEffect(() => {
-    let filtered = activitiesBackup.filter((a: Kegiatan) =>
+    // Mulai dari data yang sudah difilter role
+    let filtered = roleFilteredBackup.filter((a: Kegiatan) =>
       a.judul.toLowerCase().includes(searchTerm.toLowerCase()),
     );
+
     if (filterYear !== "all") {
       filtered = filtered.filter(
         (a: Kegiatan) =>
           new Date(a.tanggal_publikasi).getFullYear().toString() === filterYear,
       );
     }
-    setActivitiesFiltered(filtered.slice(0, limit * page));
-  }, [searchTerm, filterYear, activitiesBackup, page]);
+
+    setActivitiesFiltered(filtered.slice((page - 1) * limit, page * limit));
+  }, [searchTerm, filterYear, roleFilteredBackup, page]);
 
   return (
     <DashboardLayout>
@@ -416,6 +475,19 @@ const Activities = () => {
             <h1 className="text-3xl font-bold tracking-tight">Kegiatan</h1>
             <p className="text-muted-foreground">
               Kelola data kegiatan sekolah
+              {/* ✅ Badge role indicator */}
+              {!isSuperAdmin && allowedJenjangCodes && (
+                <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium">
+                  {allowedJenjangCodes.map((kode) => (
+                    <span
+                      key={kode}
+                      className={`px-2 py-0.5 rounded-full ${getGradeColors(kode)}`}
+                    >
+                      {kode}
+                    </span>
+                  ))}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex gap-2">
@@ -721,12 +793,19 @@ const Activities = () => {
                     />
                   </div>
 
-                  {/* JENJANG */}
+                  {/* ✅ JENJANG — difilter berdasarkan role yang sedang login */}
                   <div className="grid gap-4">
-                    <Label>Jenjang</Label>
+                    <Label>
+                      Jenjang
+                      {!isSuperAdmin && (
+                        <span className="ml-2 text-xs text-muted-foreground font-normal">
+                          (sesuai akses role Anda)
+                        </span>
+                      )}
+                    </Label>
                     <div className="grid grid-cols-2 gap-4">
-                      {jenjang &&
-                        jenjang.map((item) => (
+                      {filteredJenjangForForm.length > 0 ? (
+                        filteredJenjangForForm.map((item) => (
                           <div
                             key={item.jenjang_id}
                             className={`flex items-center ps-4 rounded-sm group border border-default bg-neutral-primary-soft rounded-base ${
@@ -770,7 +849,12 @@ const Activities = () => {
                               {item.nama_jenjang}
                             </Label>
                           </div>
-                        ))}
+                        ))
+                      ) : (
+                        <p className="col-span-2 text-sm text-muted-foreground py-2">
+                          Tidak ada jenjang yang tersedia untuk role Anda.
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1058,6 +1142,3 @@ const Activities = () => {
 };
 
 export default Activities;
-// function fetchAchievements() {
-//   throw new Error("Function not implemented.");
-// }

@@ -616,15 +616,22 @@ function ModalNilai({
   useEffect(() => {
     if (!open || !kelasSiswa) return;
 
-    const cached = getMapelByKelas(kelasSiswa);
-    if (cached.length > 0) {
-      setMapelList(cached);
-      return;
-    }
-
+    // ✅ Always fetch fresh data from API
     setIsLoadingMapel(true);
     fetchMapelByKelas(kelasSiswa)
-      .then((result) => setMapelList(result.map((m) => m.nama)))
+      .then((result) => {
+        const namaMapel = result.map((m) => m.nama);
+        setMapelList(namaMapel);
+        console.log(
+          `✅ Loaded ${namaMapel.length} mapel for ${kelasSiswa}:`,
+          namaMapel,
+        );
+      })
+      .catch((err) => {
+        console.error("Error fetching mapel:", err);
+        setMapelList([]);
+        toast.error("Gagal memuat daftar mata pelajaran");
+      })
       .finally(() => setIsLoadingMapel(false));
   }, [open, kelasSiswa]);
 
@@ -1009,74 +1016,70 @@ export default function DashboardSiswa() {
     setModalSiswaMode("edit");
     setModalSiswaOpen(true);
   };
- const saveSiswa = async () => {
-  const errors: string[] = [];
-  if (!formSiswa.nama) errors.push("Nama");
-  if (!formSiswa.nisn) {
-    errors.push("NISN");
-  } else if (!/^\d{10}$/.test(formSiswa.nisn)) {
-    toast.error("NISN harus tepat 10 digit angka");
-    return;
-  }
-  if (!formSiswa.kelas) errors.push("Kelas");
-  if (!formSiswa.tanggalLahir) errors.push("Tanggal Lahir");
-  if (!formSiswa.jenisKelamin) errors.push("Jenis Kelamin");
-  if (!formSiswa.alamat) errors.push("Alamat");
-  if (!formSiswa.status) errors.push("Status");
-  if (!formSiswa.telepon) errors.push("Telepon");
-  if (!formSiswa.email) errors.push("Email");
-  if (errors.length > 0) {
-    toast.error(`Field berikut wajib diisi: ${errors.join(", ")}`);
-    return;
-  }
-
-  // ✅ Resolve jenjang_id — wajib dikirim ke backend sebagai UUID v4
-  const jenjangId =
-    formSiswa.jenjang_id ||
-    getJenjangIdFromKelas(formSiswa.kelas, jenjangList);
-
-  if (!jenjangId) {
-    toast.error(
-      "Jenjang tidak ditemukan untuk kelas ini. Pastikan data jenjang sudah tersedia.",
-    );
-    return;
-  }
-
-  try {
-    if (modalSiswaMode === "add") {
-      const newId = generateId("S");
-      const newNo = Math.max(...siswaList.map((s) => s.no), 0) + 1;
-      const payload = {
-        id: newId,
-        no: newNo,
-        ...formSiswa,
-        jenjang_id: jenjangId, // ✅ selalu kirim jenjang_id valid
-      };
-      await postRequest("/siswa", payload);
-      setSiswaList((prev) => [...prev, payload]);
-    } else if (editingSiswaId) {
-      const payload = {
-        ...formSiswa,
-        jenjang_id: jenjangId, // ✅ selalu kirim jenjang_id valid
-      };
-      await putRequest(`/siswa/${editingSiswaId}`, payload);
-      setSiswaList((prev) =>
-        prev.map((s) =>
-          s.id === editingSiswaId ? { ...s, ...payload } : s,
-        ),
-      );
-      if (selectedSiswa?.id === editingSiswaId) {
-        setSelectedSiswa((prev) =>
-          prev ? { ...prev, ...payload } : prev,
-        );
-      }
+  const saveSiswa = async () => {
+    const errors: string[] = [];
+    if (!formSiswa.nama) errors.push("Nama");
+    if (!formSiswa.nisn) {
+      errors.push("NISN");
+    } else if (!/^\d{10}$/.test(formSiswa.nisn)) {
+      toast.error("NISN harus tepat 10 digit angka");
+      return;
     }
-    setModalSiswaOpen(false);
-    toast.success("Data siswa berhasil disimpan");
-  } catch {
-    // error sudah ditangani oleh handleApiError di api-call.ts
-  }
-};
+    if (!formSiswa.kelas) errors.push("Kelas");
+    if (!formSiswa.tanggalLahir) errors.push("Tanggal Lahir");
+    if (!formSiswa.jenisKelamin) errors.push("Jenis Kelamin");
+    if (!formSiswa.alamat) errors.push("Alamat");
+    if (!formSiswa.status) errors.push("Status");
+    if (!formSiswa.telepon) errors.push("Telepon");
+    if (!formSiswa.email) errors.push("Email");
+    if (errors.length > 0) {
+      toast.error(`Field berikut wajib diisi: ${errors.join(", ")}`);
+      return;
+    }
+
+    // ✅ Resolve jenjang_id — wajib dikirim ke backend sebagai UUID v4
+    const jenjangId =
+      formSiswa.jenjang_id ||
+      getJenjangIdFromKelas(formSiswa.kelas, jenjangList);
+
+    if (!jenjangId) {
+      toast.error(
+        "Jenjang tidak ditemukan untuk kelas ini. Pastikan data jenjang sudah tersedia.",
+      );
+      return;
+    }
+
+    try {
+      if (modalSiswaMode === "add") {
+        const newId = generateId("S");
+        const newNo = Math.max(...siswaList.map((s) => s.no), 0) + 1;
+        const payload = {
+          id: newId,
+          no: newNo,
+          ...formSiswa,
+          jenjang_id: jenjangId, // ✅ selalu kirim jenjang_id valid
+        };
+        await postRequest("/siswa", payload);
+        setSiswaList((prev) => [...prev, payload]);
+      } else if (editingSiswaId) {
+        const payload = {
+          ...formSiswa,
+          jenjang_id: jenjangId, // ✅ selalu kirim jenjang_id valid
+        };
+        await putRequest(`/siswa/${editingSiswaId}`, payload);
+        setSiswaList((prev) =>
+          prev.map((s) => (s.id === editingSiswaId ? { ...s, ...payload } : s)),
+        );
+        if (selectedSiswa?.id === editingSiswaId) {
+          setSelectedSiswa((prev) => (prev ? { ...prev, ...payload } : prev));
+        }
+      }
+      setModalSiswaOpen(false);
+      toast.success("Data siswa berhasil disimpan");
+    } catch {
+      // error sudah ditangani oleh handleApiError di api-call.ts
+    }
+  };
   const deleteSiswa = (s: Siswa) => {
     setSiswaList((prev) => prev.filter((x) => x.id !== s.id));
     setOrangTuaList((prev) => prev.filter((ot) => ot.siswaId !== s.id));

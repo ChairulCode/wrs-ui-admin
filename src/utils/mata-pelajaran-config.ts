@@ -128,16 +128,21 @@ const _fallbackToObj = (kelas: string): MataPelajaran[] =>
  */
 export const fetchMapelByKelas = async (
   kelas: string,
+  forceRefresh = false, // ✅ Parameter baru
 ): Promise<MataPelajaran[]> => {
   if (!kelas) return [];
-  if (_cache.has(kelas)) return _cache.get(kelas)!;
+
+  // ✅ Skip cache jika forceRefresh = true
+  if (!forceRefresh && _cache.has(kelas)) {
+    return _cache.get(kelas)!;
+  }
 
   try {
     const res = await getRequest(
       `/mata-pelajaran?kelas=${encodeURIComponent(kelas)}`,
     );
     const mapel: MataPelajaran[] = res?.data?.mataPelajaran ?? [];
-    if (mapel.length > 0) _cache.set(kelas, mapel); // hanya cache data valid
+    if (mapel.length > 0) _cache.set(kelas, mapel);
     return mapel.length > 0 ? mapel : _fallbackToObj(kelas);
   } catch {
     console.warn(`[MataPelajaran] API gagal — pakai fallback untuk "${kelas}"`);

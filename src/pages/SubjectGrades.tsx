@@ -526,7 +526,7 @@ const SubjectGrades = () => {
             <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl">
               <div className="p-6 border-b flex justify-between items-center bg-white sticky top-0 z-10">
                 <h2 className="text-xl font-bold">
-                  {isEditMode ? "📝 Edit Data Nilai" : "✨ Tambah Data Nilai"}
+                  {isEditMode ? "📝 Edit Data Nilai" : "✨ Tamba Data Nilai"}
                 </h2>
                 <button
                   onClick={closeModal}

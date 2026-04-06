@@ -23,6 +23,9 @@ interface SocialMedia {
   url: string;
   level: string;
   is_active: boolean;
+  // ── FIX: tambahkan field urutan ──────────────────────────────────────────────
+  // Backend mewajibkan field ini saat PUT, tapi sebelumnya tidak ada di interface
+  urutan?: number;
 }
 
 // ─── SVG Brand Icons ──────────────────────────────────────────────────────────
@@ -67,10 +70,10 @@ const SocialIcon = ({
 const PLATFORM_CONFIG: Record<
   string,
   {
-    iconBg: string; // background lingkaran icon
-    accentBorder: string; // border berwarna brand
-    pillBg: string; // pill "Aktif"
-    glow: string; // shadow warna brand saat hover
+    iconBg: string;
+    accentBorder: string;
+    pillBg: string;
+    glow: string;
   }
 > = {
   instagram: {
@@ -132,6 +135,7 @@ const Social = () => {
     url: "",
     level: "",
     is_active: true,
+    urutan: 1, // ── FIX: tambahkan default urutan di initial state
   });
 
   const getAuthConfig = () => {
@@ -142,10 +146,18 @@ const Social = () => {
   const fetchSocials = async () => {
     try {
       const res = await axios.get(API_URL, getAuthConfig());
+
+      // ── Debug: lihat struktur data dari GET ────────────────────────────────
+      console.group("🔍 [DEBUG] fetchSocials response");
+      console.log("res.data:", res.data);
+      console.log("res.data.data:", res.data.data);
+      console.groupEnd();
+
       setSocialData(res.data.data || []);
-    } catch (error: any) {
-      console.error("Gagal load data", error);
-      if (error.response?.status === 401 || error.response?.status === 403)
+    } catch (error: unknown) {
+      console.error("❌ [DEBUG] fetchSocials error:", error);
+      const err = error as { response?: { status?: number } };
+      if (err.response?.status === 401 || err.response?.status === 403)
         alert("Sesi Anda berakhir, silakan login kembali.");
     } finally {
       setLoading(false);
@@ -178,44 +190,131 @@ const Social = () => {
       alert("Anda tidak memiliki akses untuk mengelola tingkatan ini.");
       return;
     }
-    setFormData(
-      existing
-        ? { ...existing }
-        : {
-            social_media_id: "",
-            platform,
-            username: "",
-            url: "",
-            level,
-            is_active: true,
-          },
-    );
+
+    if (existing) {
+      // ── FIX UTAMA: Saat edit, bawa semua field dari data existing ──────────
+      // Termasuk `urutan` yang sebelumnya tidak dibawa ke form.
+      // Backend wajib terima `urutan` saat PUT, jadi kita harus kirim balik
+      // nilai yang sudah ada agar tidak kena validasi error.
+
+      console.group("🔍 [DEBUG] handleOpenModal (edit)");
+      console.log("existing data:", existing);
+      console.log("urutan dari existing:", existing.urutan);
+      console.groupEnd();
+
+      setFormData({
+        social_media_id: existing.social_media_id,
+        platform: existing.platform,
+        username: existing.username,
+        url: existing.url,
+        level: existing.level,
+        is_active: existing.is_active,
+        // ── FIX: ambil urutan dari data existing, fallback ke 1 ──────────────
+        // Sebelumnya field ini tidak di-set sama sekali → backend reject dengan
+        // error "Urutan harus berupa angka positif"
+        urutan: existing.urutan ?? 1,
+      });
+    } else {
+      // Mode tambah baru: hitung urutan otomatis berdasarkan jumlah data
+      // di level + platform yang sama agar tidak bentrok
+      const existingInLevel = socialData.filter((s) => s.level === level);
+      const nextUrutan = existingInLevel.length + 1;
+
+      console.group("🔍 [DEBUG] handleOpenModal (add)");
+      console.log("level:", level, "platform:", platform);
+      console.log("existingInLevel:", existingInLevel);
+      console.log("nextUrutan:", nextUrutan);
+      console.groupEnd();
+
+      setFormData({
+        social_media_id: "",
+        platform,
+        username: "",
+        url: "",
+        level,
+        is_active: true,
+        urutan: nextUrutan, // ── FIX: set urutan otomatis saat tambah baru
+      });
+    }
+
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!canEditLevel(formData.level)) {
       alert("Anda tidak memiliki akses untuk mengelola tingkatan ini.");
       return;
     }
+
+    // ── Debug: lihat payload yang akan dikirim ke backend ──────────────────
+    console.group("🔍 [DEBUG] handleSubmit");
+    console.log("formData yang akan dikirim:", formData);
+    console.log("social_media_id:", formData.social_media_id);
+    console.log("urutan:", formData.urutan);
+    console.log(
+      "Mode:",
+      formData.social_media_id ? "PUT (edit)" : "POST (tambah)",
+    );
+    console.groupEnd();
+
+    // ── Validasi urutan sebelum kirim (agar error lebih jelas ke user) ──────
+    if (!formData.urutan || formData.urutan < 1) {
+      alert("Urutan harus berupa angka positif (minimal 1).");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const cfg = getAuthConfig();
-      if (formData.social_media_id)
-        await axios.put(
+
+      // ── FIX: Buat payload eksplisit yang selalu include urutan ──────────────
+      // Sebelumnya langsung kirim `formData` — tapi jika urutan undefined,
+      // backend akan reject. Sekarang kita pastikan urutan selalu ada.
+      const payload = {
+        platform: formData.platform,
+        username: formData.username,
+        url: formData.url,
+        level: formData.level,
+        is_active: formData.is_active,
+        urutan: formData.urutan ?? 1, // ← ini yang fix error validasinya
+      };
+
+      console.log("📤 [DEBUG] payload yang dikirim ke API:", payload);
+
+      if (formData.social_media_id) {
+        // Edit existing
+        const res = await axios.put(
           `${API_URL}/${formData.social_media_id}`,
-          formData,
+          payload,
           cfg,
         );
-      else await axios.post(API_URL, formData, cfg);
+        console.log("✅ [DEBUG] PUT response:", res.data);
+      } else {
+        // Tambah baru
+        const res = await axios.post(API_URL, payload, cfg);
+        console.log("✅ [DEBUG] POST response:", res.data);
+      }
+
       alert("Data berhasil disimpan!");
       setIsModalOpen(false);
       fetchSocials();
-    } catch (error: any) {
-      alert(
-        "Gagal menyimpan: " + (error.response?.data?.message || error.message),
-      );
+    } catch (error: unknown) {
+      const err = error as {
+        response?: { data?: { message?: string; errors?: unknown[] } };
+        message?: string;
+      };
+
+      // ── Debug: tampilkan detail error dari backend ─────────────────────────
+      console.group("❌ [DEBUG] handleSubmit error");
+      console.log("Error response:", err.response?.data);
+      console.log("Errors detail:", err.response?.data?.errors);
+      console.groupEnd();
+
+      const backendMessage =
+        err.response?.data?.message ?? err.message ?? "Terjadi kesalahan";
+      alert("Gagal menyimpan: " + backendMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -230,7 +329,8 @@ const Social = () => {
     try {
       await axios.delete(`${API_URL}/${id}`, getAuthConfig());
       fetchSocials();
-    } catch {
+    } catch (err) {
+      console.error("❌ [DEBUG] handleDelete error:", err);
       alert("Gagal menghapus");
     }
   };
@@ -250,7 +350,6 @@ const Social = () => {
     <DashboardLayout>
       <>
         <style>{`
-          /* ── Kartu platform ── */
           .sc-wrap   { position: relative; }
           .sc-card   {
             position: relative; width: 100%;
@@ -259,7 +358,6 @@ const Social = () => {
             display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
             cursor: pointer; text-align: left;
             transition: transform .18s, box-shadow .18s, background .18s;
-            /* glass transparan */
             background: rgba(255,255,255,0.07);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
@@ -271,7 +369,6 @@ const Social = () => {
           .sc-card:active:not([disabled]) { transform: scale(0.98); }
           .sc-card[disabled] { opacity: 0.45; cursor: not-allowed; }
 
-          /* top row */
           .sc-top {
             width: 100%; display: flex;
             align-items: center; justify-content: space-between;
@@ -286,7 +383,6 @@ const Social = () => {
             background: rgba(255,255,255,0.15);
           }
 
-          /* teks */
           .sc-name {
             font-size: 13px; font-weight: 800;
             color: black;
@@ -305,7 +401,6 @@ const Social = () => {
             font-style: italic; font-weight: 400;
           }
 
-          /* pill "Aktif" */
           .sc-pill {
             font-size: 9px; font-weight: 800;
             letter-spacing: .08em; text-transform: uppercase;
@@ -314,13 +409,11 @@ const Social = () => {
             filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
           }
 
-          /* baris bawah: username + pill */
           .sc-bottom {
             width: 100%; display: flex;
             align-items: center; justify-content: space-between; gap: 6px;
           }
 
-          /* tombol delete */
           .sc-del {
             position: absolute; top: -8px; right: -8px;
             width: 22px; height: 22px; border-radius: 50%;
@@ -332,7 +425,6 @@ const Social = () => {
           }
           .sc-wrap:hover .sc-del { opacity: 1; }
 
-          /* section header */
           .sc-head {
             display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
           }
@@ -347,7 +439,6 @@ const Social = () => {
             padding: 2px 8px; border-radius: 999px;
           }
 
-          /* role banner */
           .sc-role-banner {
             background: #fdf8ed; border: 1px solid #e8d89a;
             border-radius: 12px; padding: 12px 16px; margin-bottom: 28px;
@@ -355,14 +446,12 @@ const Social = () => {
           .sc-role-banner p   { margin: 0; font-size: 13px; color: #5a4a20; }
           .sc-role-banner p+p { margin-top: 2px; font-size: 11px; color: #8a7040; }
 
-          /* section container */
           .sc-section-bg {
             background: transparent;
             border-radius: 20px;
             padding: 20px;
           }
 
-          /* fade-up animation */
           @keyframes scUp {
             from { opacity: 0; transform: translateY(8px); }
             to   { opacity: 1; transform: translateY(0); }
@@ -397,7 +486,6 @@ const Social = () => {
                       className="sc-item flex flex-col gap-4"
                       style={{ animationDelay: `${lvlIdx * 60}ms` }}
                     >
-                      {/* Section header */}
                       <div className="sc-head">
                         <h2 className="sc-head-title">{lvl.title}</h2>
                         {!hasAccess && (
@@ -407,7 +495,6 @@ const Social = () => {
                         )}
                       </div>
 
-                      {/* Dark background untuk grid kartu */}
                       <div className="sc-section-bg">
                         <div className="grid grid-cols-2 gap-3">
                           {platforms.map((pName) => {
@@ -442,7 +529,6 @@ const Social = () => {
                                       : "0 1px 6px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)",
                                   }}
                                 >
-                                  {/* Icon + action */}
                                   <div className="sc-top">
                                     <div
                                       className="sc-icon-circle"
@@ -483,10 +569,8 @@ const Social = () => {
                                     </div>
                                   </div>
 
-                                  {/* Nama platform */}
                                   <span className="sc-name">{pName}</span>
 
-                                  {/* Username / status */}
                                   {isSet ? (
                                     <div className="sc-bottom">
                                       <span className="sc-user">
@@ -508,7 +592,6 @@ const Social = () => {
                                   )}
                                 </button>
 
-                                {/* Delete button */}
                                 {isSet && hasAccess && (
                                   <button
                                     className="sc-del"
@@ -601,6 +684,24 @@ const Social = () => {
                   required
                 />
               </div>
+
+              {/*
+                ── Opsional: tampilkan field urutan jika ingin user bisa ubah ──
+                Uncomment blok di bawah ini jika diperlukan:
+
+                <div className="space-y-2">
+                  <Label htmlFor="urutan">Urutan Tampil</Label>
+                  <Input
+                    id="urutan"
+                    type="number"
+                    min={1}
+                    value={formData.urutan ?? 1}
+                    onChange={(e) => setFormData({ ...formData, urutan: Number(e.target.value) })}
+                    required
+                  />
+                  <p className="text-xs text-slate-400">Angka kecil tampil lebih dulu</p>
+                </div>
+              */}
 
               <div className="pt-2 flex gap-3">
                 <Button

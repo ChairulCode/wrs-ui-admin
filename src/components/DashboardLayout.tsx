@@ -35,6 +35,7 @@ import { NavLink } from "react-router-dom";
 import { useAppContext, UserInfo } from "@/utils/app-context";
 import { toast } from "react-toastify";
 import { getRequest } from "@/utils/api-call";
+import { Info } from "lucide-react";
 
 const getUserPermission = async (id) => {
   const res = await getRequest(`/users/${id}`);
@@ -63,7 +64,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       ],
     },
     {
-      title: "Siswa",
+      title: "Siswa & Kelola Nilai",
       url: "/dashboard/students",
       icon: UserCircle,
       roles: [
@@ -159,24 +160,13 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       icon: Building2,
       roles: ["Super Administrator"],
     },
-    // {
-    //   title: "Kelola Ekstrakurikuler",
-    //   url: "/dashboard/Ekstrakurikuler",
-    //   icon: Building2,
-    //   roles: ["Super Administrator"],
-    // },
     {
-      title: "Pengumuman kelulusan",
+      title: "Pengumuman Kelulusan",
       url: "/dashboard/kenaikan-kelas",
       icon: TrendingUp,
-      roles: [
-        "Super Administrator",
-        "Admin",
-        "Kepala Sekolah PGTK",
-        "Kepala Sekolah SD",
-        "Kepala Sekolah SMP",
-        "Kepala Sekolah SMA",
-      ],
+      // ── FIX: hanya Super Administrator, Admin, dan Kepala Sekolah SMA ──────
+      // Role lain (SD, SMP, PGTK) tidak akan melihat menu ini di sidebar sama sekali
+      roles: ["Super Administrator", "Admin", "Kepala Sekolah SMA"],
     },
     {
       title: "Kelola Carousel",
@@ -208,6 +198,19 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       url: "/dashboard/roles",
       icon: UserCog,
       roles: ["Super Administrator", "Admin"],
+    },
+    {
+      title: "Kelola Halaman About",
+      url: "/dashboard/about",
+      icon: Info,
+      roles: [
+        "Super Administrator",
+        "Admin",
+        "Kepala Sekolah PGTK",
+        "Kepala Sekolah SD",
+        "Kepala Sekolah SMP",
+        "Kepala Sekolah SMA",
+      ],
     },
   ];
 

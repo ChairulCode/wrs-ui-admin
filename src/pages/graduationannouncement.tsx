@@ -10,6 +10,7 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ import { toast } from "sonner";
 import api from "@/lib/axios";
 import { useAppContext } from "@/utils/app-context";
 
-// ─── Helper: ISO / YYYYMMDD → YYYY-MM-DD untuk input[type=date] ─────────────
+// ─── Helper ───────────────────────────────────────────────────────────────────
 const toDateInput = (raw?: string): string => {
   if (!raw) return "";
   if (raw.includes("T") || raw.includes("-")) return raw.substring(0, 10);
@@ -57,6 +58,24 @@ const KELAS_LABEL: Record<string, string> = {
   XII_IPS: "XII IPS",
 };
 
+// ─── Role helpers ─────────────────────────────────────────────────────────────
+//
+// Tiga level akses:
+//   1. Super Administrator / Admin  → CRUD semua data, lihat semua jenjang
+//   2. Kepala Sekolah SMA           → CRUD hanya data SMA
+//   3. Role lain                    → tidak punya akses (guard di render)
+//
+const ALLOWED_ROLES = ["Super Administrator", "Admin", "Kepala Sekolah SMA"];
+
+// Cek apakah role boleh mengakses halaman ini sama sekali
+const hasPageAccess = (role?: string): boolean =>
+  ALLOWED_ROLES.includes(role ?? "");
+
+// Cek apakah role punya akses penuh ke semua jenjang
+const isFullAccess = (role?: string): boolean =>
+  role === "Super Administrator" || role === "Admin";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface KelulusanItem {
   kelulusan_id: string;
   nomor_siswa: string;
@@ -99,6 +118,7 @@ const INITIAL_FORM: FormData = {
   keterangan: "",
 };
 
+// ─── Main Component ───────────────────────────────────────────────────────────
 const GraduationAnnouncement = () => {
   const { userLoginInfo, isLoading: contextLoading } = useAppContext();
 
@@ -116,47 +136,39 @@ const GraduationAnnouncement = () => {
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Permission helpers ────────────────────────────────────────────────────
-  const isSuperAdminOrAdmin = () => {
-    const role = userLoginInfo?.userInfo?.role;
-    return role === "Super Administrator" || role === "Admin";
-  };
-
-  const getAllowedJenjang = (): "ALL" | string[] => {
-    const role = userLoginInfo?.userInfo?.role;
-    if (role === "Super Administrator" || role === "Admin") return "ALL";
-    if (role === "Kepala Sekolah SMA") return ["SMA"];
-    if (role === "Kepala Sekolah SMP") return ["SMP"];
-    if (role === "Kepala Sekolah SD") return ["SD"];
-    if (role === "Kepala Sekolah PGTK") return ["PGTK", "PGTK", "TK"];
-    return [];
-  };
-
-  const canAccessJenjang = (namaJenjang?: string) => {
-    const allowed = getAllowedJenjang();
-    if (allowed === "ALL") return true;
-    if (!namaJenjang) return false;
-    const norm = namaJenjang.toUpperCase();
-    return (allowed as string[]).some((a) => norm.includes(a.toUpperCase()));
-  };
-
-  const allowedJenjangDisplay = getAllowedJenjang();
+  // Ambil role sekali, dipakai di mana-mana
+  const role = userLoginInfo?.userInfo?.role;
 
   // ── Fetch jenjang ─────────────────────────────────────────────────────────
   const fetchJenjang = async () => {
     try {
       const res = await api.get("/jenjang");
       const all: any[] = res.data.data || [];
-      setJenjangList(
-        isSuperAdminOrAdmin()
-          ? all
-          : all.filter((j) => canAccessJenjang(j.nama_jenjang)),
-      );
+
+      if (isFullAccess(role)) {
+        // Super Admin & Admin: tampilkan semua jenjang di dropdown
+        setJenjangList(all);
+      } else {
+        // Kepala Sekolah SMA: hanya jenjang yang mengandung kata "SMA"
+        const smaOnly = all.filter((j) =>
+          j.nama_jenjang?.toUpperCase().includes("SMA"),
+        );
+        setJenjangList(smaOnly);
+
+        // Auto-pilih jenjang SMA pertama di form agar tidak perlu pilih manual
+        if (smaOnly.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            jenjang_id: smaOnly[0].jenjang_id,
+          }));
+        }
+      }
     } catch {
       /* skip */
     }
   };
 
+  // ── Fetch data kelulusan ──────────────────────────────────────────────────
   const fetchData = async (page = currentPage) => {
     setLoading(true);
     try {
@@ -170,9 +182,12 @@ const GraduationAnnouncement = () => {
       const res = await api.get("/graduation", { params });
       const all: KelulusanItem[] = res.data.data || [];
 
-      const filtered = isSuperAdminOrAdmin()
+      // Kepala Sekolah SMA: filter client-side juga sebagai lapis keamanan
+      const filtered = isFullAccess(role)
         ? all
-        : all.filter((item) => canAccessJenjang(item.jenjang?.nama_jenjang));
+        : all.filter((item) =>
+            item.jenjang?.nama_jenjang?.toUpperCase().includes("SMA"),
+          );
 
       setData(filtered);
       setMeta(res.data.metadata ?? null);
@@ -199,11 +214,13 @@ const GraduationAnnouncement = () => {
     fetchData(currentPage);
   }, [currentPage]);
 
+  // ── Open modal ────────────────────────────────────────────────────────────
   const handleOpenModal = (item: KelulusanItem | null = null) => {
     if (item) {
+      // Guard: Kepala Sekolah SMA tidak bisa edit data non-SMA
       if (
-        !isSuperAdminOrAdmin() &&
-        !canAccessJenjang(item.jenjang?.nama_jenjang)
+        !isFullAccess(role) &&
+        !item.jenjang?.nama_jenjang?.toUpperCase().includes("SMA")
       ) {
         toast.error(
           "Anda tidak memiliki akses untuk mengedit data jenjang ini.",
@@ -231,6 +248,7 @@ const GraduationAnnouncement = () => {
     setIsModalOpen(true);
   };
 
+  // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -263,8 +281,10 @@ const GraduationAnnouncement = () => {
     }
   };
 
+  // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string, jenjangNama?: string) => {
-    if (!isSuperAdminOrAdmin() && !canAccessJenjang(jenjangNama)) {
+    // Guard: Kepala Sekolah SMA tidak bisa hapus data non-SMA
+    if (!isFullAccess(role) && !jenjangNama?.toUpperCase().includes("SMA")) {
       toast.error(
         "Anda tidak memiliki akses untuk menghapus data jenjang ini.",
       );
@@ -284,6 +304,7 @@ const GraduationAnnouncement = () => {
     }
   };
 
+  // ── Loading state ─────────────────────────────────────────────────────────
   if (contextLoading || !userLoginInfo) {
     return (
       <DashboardLayout>
@@ -297,6 +318,36 @@ const GraduationAnnouncement = () => {
     );
   }
 
+  // ── GUARD: role tidak punya akses ─────────────────────────────────────────
+  // Sidebar sudah menyembunyikan menu, tapi guard ini tetap perlu
+  // sebagai lapis keamanan jika user mengakses URL secara langsung
+  if (!hasPageAccess(role)) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-32 gap-4">
+          <ShieldAlert className="w-16 h-16 text-slate-200" />
+          <p className="text-lg font-bold text-slate-500">Akses Ditolak</p>
+          <p className="text-sm text-center max-w-sm text-slate-400">
+            Fitur{" "}
+            <span className="font-semibold text-slate-600">
+              Pengumuman Kelulusan
+            </span>{" "}
+            hanya tersedia untuk{" "}
+            <span className="font-semibold text-slate-600">
+              Super Administrator, Admin,
+            </span>{" "}
+            dan{" "}
+            <span className="font-semibold text-slate-600">
+              Kepala Sekolah SMA
+            </span>
+            .
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <div className="space-y-6 p-2">
@@ -320,7 +371,7 @@ const GraduationAnnouncement = () => {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-lg bg-primary/10">
-                {isSuperAdminOrAdmin() ? (
+                {isFullAccess(role) ? (
                   <CheckCircle className="w-5 h-5 text-primary" />
                 ) : (
                   <Lock className="w-5 h-5 text-primary" />
@@ -339,20 +390,15 @@ const GraduationAnnouncement = () => {
               <span className="text-xs text-muted-foreground">
                 Akses Jenjang:
               </span>
-              {isSuperAdminOrAdmin() ? (
+              {isFullAccess(role) ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium">
                   <CheckCircle className="w-3 h-3" /> Semua Jenjang
                 </span>
-              ) : Array.isArray(allowedJenjangDisplay) ? (
-                allowedJenjangDisplay.map((j) => (
-                  <span
-                    key={j}
-                    className="px-2.5 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium"
-                  >
-                    {j}
-                  </span>
-                ))
-              ) : null}
+              ) : (
+                <span className="px-2.5 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium">
+                  SMA
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -368,19 +414,22 @@ const GraduationAnnouncement = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select value={selectedJenjang} onValueChange={setSelectedJenjang}>
-            <SelectTrigger className="w-full md:w-[200px]">
-              <SelectValue placeholder="Semua Jenjang" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="semua">Semua Jenjang</SelectItem>
-              {jenjangList.map((j) => (
-                <SelectItem key={j.jenjang_id} value={j.jenjang_id}>
-                  {j.nama_jenjang}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Dropdown filter jenjang hanya untuk Super Admin & Admin */}
+          {isFullAccess(role) && (
+            <Select value={selectedJenjang} onValueChange={setSelectedJenjang}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Semua Jenjang" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="semua">Semua Jenjang</SelectItem>
+                {jenjangList.map((j) => (
+                  <SelectItem key={j.jenjang_id} value={j.jenjang_id}>
+                    {j.nama_jenjang}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Tabel */}
@@ -406,9 +455,10 @@ const GraduationAnnouncement = () => {
                 </TableRow>
               ) : data.length > 0 ? (
                 data.map((item) => {
-                  const hasAccess =
-                    isSuperAdminOrAdmin() ||
-                    canAccessJenjang(item.jenjang?.nama_jenjang);
+                  const canEdit =
+                    isFullAccess(role) ||
+                    item.jenjang?.nama_jenjang?.toUpperCase().includes("SMA");
+
                   return (
                     <TableRow key={item.kelulusan_id}>
                       <TableCell className="font-medium">
@@ -423,12 +473,11 @@ const GraduationAnnouncement = () => {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {item.jenjang?.nama_jenjang ?? "-"}
-                          {!hasAccess && (
+                          {!canEdit && (
                             <Lock className="w-3 h-3 text-muted-foreground" />
                           )}
                         </div>
                       </TableCell>
-                      {/* Kolom tahun ajaran — penting agar admin mudah lihat */}
                       <TableCell>
                         <Badge variant="secondary">{item.tahun_ajaran}</Badge>
                       </TableCell>
@@ -448,10 +497,10 @@ const GraduationAnnouncement = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenModal(item)}
-                          disabled={!hasAccess}
+                          disabled={!canEdit}
                         >
                           <Edit
-                            className={`h-4 w-4 ${hasAccess ? "text-blue-600" : "text-muted-foreground"}`}
+                            className={`h-4 w-4 ${canEdit ? "text-blue-600" : "text-muted-foreground"}`}
                           />
                         </Button>
                         <Button
@@ -463,10 +512,10 @@ const GraduationAnnouncement = () => {
                               item.jenjang?.nama_jenjang,
                             )
                           }
-                          disabled={!hasAccess}
+                          disabled={!canEdit}
                         >
                           <Trash2
-                            className={`h-4 w-4 ${hasAccess ? "text-destructive" : "text-muted-foreground"}`}
+                            className={`h-4 w-4 ${canEdit ? "text-destructive" : "text-muted-foreground"}`}
                           />
                         </Button>
                       </TableCell>
@@ -530,7 +579,7 @@ const GraduationAnnouncement = () => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            {/* Nomor Siswa — FIX: batasi 10 digit angka saja */}
+            {/* Nomor Siswa */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">No. Siswa</Label>
               <div className="col-span-3 space-y-1">
@@ -542,7 +591,6 @@ const GraduationAnnouncement = () => {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      // Hanya angka, maksimal 10 karakter — sama seperti di client
                       nomor_siswa: e.target.value
                         .replace(/\D/g, "")
                         .slice(0, 10),
@@ -612,6 +660,8 @@ const GraduationAnnouncement = () => {
                 onValueChange={(v) =>
                   setFormData({ ...formData, jenjang_id: v })
                 }
+                // Kepala Sekolah SMA: jika hanya ada 1 jenjang SMA, disable dropdown
+                disabled={!isFullAccess(role) && jenjangList.length <= 1}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Pilih Jenjang" />
@@ -632,7 +682,7 @@ const GraduationAnnouncement = () => {
               </Select>
             </div>
 
-            {/* Tahun Ajaran — FIX: format hint yang jelas */}
+            {/* Tahun Ajaran */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Tahun Ajaran</Label>
               <div className="col-span-3 space-y-1">
@@ -645,8 +695,7 @@ const GraduationAnnouncement = () => {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Format: YYYY/YYYY — contoh: 2024/2025 atau 2025/2026. Akan
-                  otomatis tampil di halaman pengumuman client.
+                  Format: YYYY/YYYY — contoh: 2024/2025 atau 2025/2026.
                 </p>
               </div>
             </div>
