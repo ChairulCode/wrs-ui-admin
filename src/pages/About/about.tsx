@@ -168,6 +168,18 @@ const About = () => {
     );
   }, [jenjangList, allowedJenjangCodes]);
 
+  // FIX 1: Cek apakah admin sudah punya about untuk semua jenjang yang diizinkan
+  const hasReachedAboutLimit = useMemo(() => {
+    if (isSuperAdmin) return false;
+    if (!allowedJenjangCodes || allowedJenjangCodes.length === 0) return false;
+
+    return allowedJenjangCodes.every((code) => {
+      const jenjang = jenjangList.find((j) => j.kode_jenjang === code);
+      if (!jenjang) return false;
+      return aboutList.some((a) => a.jenjang_id === jenjang.jenjang_id);
+    });
+  }, [isSuperAdmin, allowedJenjangCodes, jenjangList, aboutList]);
+
   const fetchAbout = async () => {
     setIsLoading(true);
     try {
@@ -183,8 +195,14 @@ const About = () => {
     }
   };
 
+  // FIX 1 & Bonus: resetForm auto-select jenjang untuk non-superadmin
   const resetForm = () => {
-    setFormData(initialFormData);
+    const defaultJenjangId =
+      !isSuperAdmin && filteredJenjangForForm.length > 0
+        ? filteredJenjangForForm[0].jenjang_id
+        : null;
+
+    setFormData({ ...initialFormData, jenjang_id: defaultJenjangId });
     setEditingId(null);
     setHeroImagePreview("");
     setHeroImageFile(null);
@@ -449,12 +467,16 @@ const About = () => {
                 if (!value) resetForm();
               }}
             >
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Tambah About
-                </Button>
-              </DialogTrigger>
+              {/* FIX 1: Sembunyikan tombol Tambah jika admin sudah punya about untuk jenjangnya */}
+              {!hasReachedAboutLimit && (
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Tambah About
+                  </Button>
+                </DialogTrigger>
+              )}
+
               <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
@@ -486,8 +508,15 @@ const About = () => {
                         })
                       }
                       className="w-full px-3 py-2 border rounded-md"
+                      // FIX 2: Disabled dropdown jika non-superadmin hanya punya 1 pilihan
+                      disabled={
+                        !isSuperAdmin && filteredJenjangForForm.length <= 1
+                      }
                     >
-                      <option value="">Global / Halaman Utama</option>
+                      {/* FIX 2: Opsi Global hanya tampil untuk superadmin */}
+                      {isSuperAdmin && (
+                        <option value="">Global / Halaman Utama</option>
+                      )}
                       {filteredJenjangForForm.map((j) => (
                         <option key={j.jenjang_id} value={j.jenjang_id}>
                           {j.nama_jenjang}
