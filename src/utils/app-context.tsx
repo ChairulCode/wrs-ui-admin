@@ -127,7 +127,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({
         setisAdmin(
           [
             "Super Administrator",
-            "Kepala Sekolah PGTK",
+            "Kepala Sekolah PG-TK",
             "Kepala Sekolah SD",
             "Kepala Sekolah SMP",
             "Kepala Sekolah SMA",

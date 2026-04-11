@@ -20,7 +20,7 @@ interface SocialMedia {
   platform: string;
   username: string;
   url: string;
-  level: "SMA" | "SMP" | "SD" | "PGTK" | string;
+  level: "SMA" | "SMP" | "SD" | "PG-TK" | string;
 }
 
 const API_URL = "http://localhost:3000/api/v1/sosial";
@@ -350,7 +350,7 @@ const Footer: React.FC = () => {
                   <ExternalLink className="footer-section-icon" size={28} />
                   Media Sosial PG/TK
                 </h3>
-                {renderSocialLinks("PGTK")}
+                {renderSocialLinks("PG-TK")}
               </div>
             </div>
           </div>

@@ -57,7 +57,7 @@ import { usePermission } from "@/utils/use-permisson";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tingkatan =
-  | "PG_TK"
+  | "PG-TK"
   | "SD_KELAS_RENDAH"
   | "SD_KELAS_TINGGI"
   | "SMP"
@@ -83,7 +83,7 @@ const TINGKATAN_LIST: {
   border: string;
 }[] = [
   {
-    value: "PG_TK",
+    value: "PG-TK",
     label: "PG / TK",
     color: "text-pink-600",
     bg: "bg-pink-50",
@@ -132,7 +132,7 @@ const TINGKATAN_MAP = Object.fromEntries(
 
 const ROLE_TINGKATAN_MAP: Record<string, Tingkatan[]> = {
   "Super Administrator": [
-    "PG_TK",
+    "PG-TK",
     "SD_KELAS_RENDAH",
     "SD_KELAS_TINGGI",
     "SMP",
@@ -140,14 +140,14 @@ const ROLE_TINGKATAN_MAP: Record<string, Tingkatan[]> = {
     "SMA_IPS",
   ],
   Admin: [
-    "PG_TK",
+    "PG-TK",
     "SD_KELAS_RENDAH",
     "SD_KELAS_TINGGI",
     "SMP",
     "SMA_MIPA",
     "SMA_IPS",
   ],
-  "Kepala Sekolah PGTK": ["PG_TK"],
+  "Kepala Sekolah PG-TK": ["PG-TK"],
   "Kepala Sekolah SD": ["SD_KELAS_RENDAH", "SD_KELAS_TINGGI"],
   "Kepala Sekolah SMP": ["SMP"],
   "Kepala Sekolah SMA": ["SMA_MIPA", "SMA_IPS"],
@@ -380,7 +380,7 @@ export default function DashboardMataPelajaran() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [form, setForm] = useState<Omit<MataPelajaran, "id" | "isActive">>(
-    blankForm(allowedTingkatan[0] ?? "PG_TK"),
+    blankForm(allowedTingkatan[0] ?? "PG-TK"),
   );
   const [editingId, setEditingId] = useState<string | null>(null);
 

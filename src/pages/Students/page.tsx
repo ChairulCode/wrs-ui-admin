@@ -177,7 +177,7 @@ const getJenjangIdFromKelas = (
   let targetKode = "";
   if (k.includes("TK") || k.includes("PG")) {
     // Contoh: "TK A", "TK B", "PG A"
-    targetKode = "PGTK";
+    targetKode = "PG-TK";
   } else if (
     k.includes("SMA") ||
     /\b(10|11|12)\b/.test(k) ||

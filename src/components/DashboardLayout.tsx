@@ -57,7 +57,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -70,7 +70,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -83,7 +83,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -96,7 +96,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -109,7 +109,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -122,7 +122,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -135,7 +135,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -148,7 +148,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -175,7 +175,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
@@ -206,7 +206,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       roles: [
         "Super Administrator",
         "Admin",
-        "Kepala Sekolah PGTK",
+        "Kepala Sekolah PG-TK",
         "Kepala Sekolah SD",
         "Kepala Sekolah SMP",
         "Kepala Sekolah SMA",
