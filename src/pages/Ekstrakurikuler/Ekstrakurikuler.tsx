@@ -58,8 +58,9 @@ import { useAppContext } from "@/utils/app-context";
 import DashboardPagination from "@/components/sections/dashboardPagination";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 
-const SERVER_BASE_URL =
-  import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
+const SERVER_BASE_URL = (
+  import.meta.env.VITE_BASE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
 const MAX_GAMBAR = 3;
 
 const KATEGORI_OPTIONS = [

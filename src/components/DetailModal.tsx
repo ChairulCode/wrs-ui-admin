@@ -106,7 +106,9 @@ const DetailModal = ({ id, open, onClose, refetch }: DetailModalProps) => {
 
   const getFileUrl = (filePath: string | undefined) => {
     if (!filePath) return "#";
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    const baseUrl = (
+      import.meta.env.VITE_BASE_URL || "http://localhost:3000"
+    ).replace(/\/$/, "");
     const cleanPath = filePath.replace(/^\//, "");
     return `${baseUrl}/${cleanPath}`;
   };

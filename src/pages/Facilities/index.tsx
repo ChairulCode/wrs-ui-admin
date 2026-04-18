@@ -53,8 +53,9 @@ import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-const SERVER_BASE_URL =
-  import.meta.env.VITE_SERVER_BASE_URL || "http://localhost:3000";
+const SERVER_BASE_URL = (
+  import.meta.env.VITE_BASE_URL || "http://localhost:3000"
+).replace(/\/$/, "");
 const MAX_GAMBAR = 3;
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────

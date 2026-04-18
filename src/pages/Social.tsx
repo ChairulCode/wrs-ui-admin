@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Edit3, Plus, Lock, ExternalLink } from "lucide-react";
 import { useAppContext } from "@/utils/app-context";
 
-const API_URL = "http://localhost:3000/api/v1/sosial";
+const API_URL = `${(import.meta.env.VITE_BASE_URL || "http://localhost:3000").replace(/\/$/, "")}/api/v1/sosial`;
 
 interface SocialMedia {
   social_media_id: string | number;

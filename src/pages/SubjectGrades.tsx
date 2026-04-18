@@ -14,7 +14,7 @@ import { toast } from "react-hot-toast";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAppContext } from "@/utils/app-context";
 
-const API_BASE_URL = "http://localhost:3000/api/v1";
+const API_BASE_URL = `${(import.meta.env.VITE_BASE_URL || "http://localhost:3000").replace(/\/$/, "")}/api/v1`;
 
 interface MapelItem {
   mapel: string;
