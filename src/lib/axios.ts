@@ -1,8 +1,7 @@
 import axios from "axios";
 
-// KITA PAKSA URL-NYA DISINI BIAR TIDAK ADA KATA 'UNDEFINED'
 const api = axios.create({
-  baseURL: "http://localhost:3000/api/v1",
+  baseURL: `${(import.meta.env.VITE_BASE_URL || "http://localhost:3000").replace(/\/$/, "")}/api/v1`,
   withCredentials: true,
 });
 

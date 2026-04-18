@@ -4,7 +4,7 @@ import axios from "axios";
 import Footer from "../components/footer/index";
 import "./css/pengumuman-kelulusan.css";
 
-const API_BASE = "http://localhost:3000/api/v1";
+const API_BASE = `${(import.meta.env.VITE_BASE_URL || "http://localhost:3000").replace(/\/$/, "")}/api/v1`;
 const TAHUN_AJARAN = "2024/2025";
 
 // ─── Types ───────────────────────────────────────────────────

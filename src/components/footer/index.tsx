@@ -23,7 +23,7 @@ interface SocialMedia {
   level: "SMA" | "SMP" | "SD" | "PG-TK" | string;
 }
 
-const API_URL = "http://localhost:3000/api/v1/sosial";
+const API_URL = `${(import.meta.env.VITE_BASE_URL || "http://localhost:3000").replace(/\/$/, "")}/api/v1/sosial`;
 
 const Footer: React.FC = () => {
   // 2. Berikan tipe data <SocialMedia[]> pada useState
