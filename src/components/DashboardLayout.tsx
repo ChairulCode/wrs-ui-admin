@@ -49,6 +49,14 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
   const pathname = useLocation().pathname;
   const { isUserLoggedIn, logout } = useAppContext();
 
+  // ✅ Handler logout dengan toast
+  const handleLogout = () => {
+    toast.success("Berhasil logout. Sampai jumpa!", {
+      autoClose: 1500,
+      onClose: () => logout(),
+    });
+  };
+
   const menuItems = [
     {
       title: "Dashboard",
@@ -164,8 +172,6 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
       title: "Pengumuman Kelulusan",
       url: "/dashboard/kenaikan-kelas",
       icon: TrendingUp,
-      // ── FIX: hanya Super Administrator, Admin, dan Kepala Sekolah SMA ──────
-      // Role lain (SD, SMP, PGTK) tidak akan melihat menu ini di sidebar sama sekali
       roles: ["Super Administrator", "Admin", "Kepala Sekolah SMA"],
     },
     {
@@ -259,7 +265,7 @@ const DashboardSidebar = ({ profile }: { profile: UserInfo | null }) => {
               ))}
               <SidebarMenuItem className="mt-4">
                 <SidebarMenuButton
-                  onClick={logout}
+                  onClick={handleLogout} // ✅ diubah dari logout ke handleLogout
                   className="h-11 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
                 >
                   <LogOut className="h-5 w-5" />

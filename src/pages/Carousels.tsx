@@ -315,12 +315,7 @@ const CarouselsPage = () => {
   const handleUploadImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const safeName = sanitizeFileName(file.name);
-      setFormData((prev) => ({
-        ...prev,
-        path_gambar: "carousels/" + safeName,
-      }));
-      setGambar(file);
+      setGambar(file); // path_gambar diupdate dari response server setelah upload
     }
   };
   const filteredData = useMemo(() => {
@@ -655,8 +650,8 @@ const CarouselsPage = () => {
                       Memuat data...
                     </TableCell>
                   </TableRow>
-                ) : carouselsFiltered.length > 0 ? (
-                  carouselsFiltered.map((c, i) => (
+                ) : filteredData.length > 0 ? (
+                  filteredData.map((c, i) => (
                     <TableRow key={c.carousel_id}>
                       <TableCell>{(page - 1) * limit + i + 1}</TableCell>
                       <TableCell>

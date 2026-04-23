@@ -158,10 +158,10 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="footer">
-      <div className="footer-bg-pattern"></div>
+      {/* <div className="footer-bg-pattern"></div>
       <div className="footer-bg-element footer-bg-element--1"></div>
       <div className="footer-bg-element footer-bg-element--2"></div>
-      <div className="footer-bg-element footer-bg-element--3"></div>
+      <div className="footer-bg-element footer-bg-element--3"></div> */}
 
       <div className="footer-container">
         <div className="footer-header">
